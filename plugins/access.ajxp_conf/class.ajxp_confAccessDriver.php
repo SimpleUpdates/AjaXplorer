@@ -1,40 +1,31 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The "admin" driver, to make use of the GUI to manage AjaXplorer settings.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ *
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
+/**
+ * @package info.ajaxplorer.plugins
+ * @class ajxp_confAccessDriver
+ * AJXP_Plugin to access the configurations data
+ */
 class ajxp_confAccessDriver extends AbstractAccessDriver 
 {	
 	
@@ -42,7 +33,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 		if(!isSet($this->actions[$action])) return;
 		parent::accessPreprocess($action, $httpVars, $fileVars);
 		$loggedUser = AuthService::getLoggedUser();
-		if(ENABLE_USERS && !$loggedUser->isAdmin()) return ;
+		if(AuthService::usersEnabled() && !$loggedUser->isAdmin()) return ;
 		
 		if($action == "edit"){
 			if(isSet($httpVars["sub_action"])){
@@ -57,47 +48,65 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 			//	BASIC LISTING
 			//------------------------------------
 			case "ls":
-				$rootNodes = array(
-					"repositories" => array("LABEL" => $mess["ajxp_conf.3"], "ICON" => "folder_red.png"),
-					"users" => array("LABEL" => $mess["ajxp_conf.2"], "ICON" => "yast_kuser.png"),
-					"roles" => array("LABEL" => $mess["ajxp_conf.69"], "ICON" => "user_group_new.png"),
-					"files" => array("LABEL" => $mess["ajxp_shared.3"], "ICON" => "html.png"),
-					"logs" => array("LABEL" => $mess["ajxp_conf.4"], "ICON" => "toggle_log.png"),
-					"diagnostic" => array("LABEL" => $mess["ajxp_conf.5"], "ICON" => "susehelpcenter.png")
-				);
-				$dir = AJXP_Utils::decodeSecureMagic((isset($httpVars["dir"])?$httpVars["dir"]:""));
-				$splits = explode("/", $dir);
-				if(count($splits)){
-					if($splits[0] == "") array_shift($splits);
-					if(count($splits)) $strippedDir = strtolower(urldecode($splits[0]));
-					else $strippedDir = "";
-				}				
-				if(array_key_exists($strippedDir, $rootNodes)){
-					AJXP_XMLWriter::header();
-					if($strippedDir == "users"){
-						$this->listUsers();
-					}else if($strippedDir == "roles"){
-						$this->listRoles();
-					}else if($strippedDir == "repositories"){
-						$this->listRepositories();
-					}else if($strippedDir == "logs"){
-						$this->listLogFiles($dir);
-					}else if($strippedDir == "diagnostic"){
-						$this->printDiagnostic();
-					}else if($strippedDir == "files"){
-						$this->listSharedFiles();
-					}
-					AJXP_XMLWriter::close();
-					return;
+
+                $rootNodes = array(
+                    "config" => array(
+                        "LABEL" => $mess["ajxp_conf.109"],
+                        "ICON" => "preferences_desktop.png",
+                        "CHILDREN" => array(
+                            "core"	   	   => array("LABEL" => $mess["ajxp_conf.98"], "ICON" => "preferences_desktop.png", "LIST" => "listPlugins"),
+                            "plugins"	   => array("LABEL" => $mess["ajxp_conf.99"], "ICON" => "folder_development.png", "LIST" => "listPlugins"),
+                        )
+                    ),
+                    "data" => array(
+                        "LABEL" => $mess["ajxp_conf.110"],
+                        "ICON" => "user.png",
+                        "CHILDREN" => array(
+                            "repositories" => array("LABEL" => $mess["ajxp_conf.3"], "ICON" => "hdd_external_unmount.png", "LIST" => "listRepositories"),
+                            "users" => array("LABEL" => $mess["ajxp_conf.2"], "ICON" => "user.png", "LIST" => "listUsers"),
+                            "roles" => array("LABEL" => $mess["ajxp_conf.69"], "ICON" => "yast_kuser.png", "LIST" => "listRoles"),
+                        )
+                    ),
+                    "admin" => array(
+                        "LABEL" => $mess["ajxp_conf.111"],
+                        "ICON" => "toggle_log.png",
+                        "CHILDREN" => array(
+                            "logs" => array("LABEL" => $mess["ajxp_conf.4"], "ICON" => "toggle_log.png", "LIST" => "listLogFiles"),
+                            "files" => array("LABEL" => $mess["ajxp_shared.3"], "ICON" => "html.png", "LIST" => "listSharedFiles"),
+                            "diagnostic" => array("LABEL" => $mess["ajxp_conf.5"], "ICON" => "susehelpcenter.png", "LIST" => "printDiagnostic")
+                        )
+                    ),
+                );
+                    
+				$dir = trim(AJXP_Utils::decodeSecureMagic((isset($httpVars["dir"])?$httpVars["dir"]:"")), " /");
+                if($dir != ""){
+    				$splits = explode("/", $dir);
+                    $root = array_shift($splits);
+                    if(count($splits)){
+                        $child = $splits[0];
+                        if(isSet($rootNodes[$root]["CHILDREN"][$child])){
+                            AJXP_XMLWriter::header();
+                            call_user_func(array($this, $rootNodes[$root]["CHILDREN"][$child]["LIST"]), implode("/", $splits), $root);
+                            AJXP_XMLWriter::close();
+                            return;
+                        }
+                    }else{
+                        $parentName = "/".$root."/";
+                        $nodes = $rootNodes[$root]["CHILDREN"];
+                    }
 				}else{
-					AJXP_XMLWriter::header();
-					AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist"><column messageId="ajxp_conf.1" attributeName="ajxp_label" sortType="String"/></columns>');
-					foreach ($rootNodes as $key => $data){
-						print '<tree text="'.$data["LABEL"].'" icon="'.$data["ICON"].'" filename="/'.$key.'" parentname="/"/>';
-					}
-					AJXP_XMLWriter::close();
-					return;
-				}
+                    $parentName = "/";
+                    $nodes = $rootNodes;
+                }
+                if(isSet($nodes)){
+                    AJXP_XMLWriter::header();
+                    AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist"><column messageId="ajxp_conf.1" attributeName="ajxp_label" sortType="String"/></columns>');
+                    foreach ($nodes as $key => $data){
+                        print '<tree text="'.AJXP_Utils::xmlEntities($data["LABEL"]).'" icon="'.$data["ICON"].'" filename="'.$parentName.$key.'"/>';
+                    }
+                    AJXP_XMLWriter::close();
+
+                }
 			break;
 			
 			case "stat" :
@@ -131,7 +140,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				}
 				AJXP_XMLWriter::header("admin_data");
 				print(AJXP_XMLWriter::writeRoleRepositoriesData($role));
-				AJXP_XMLWriter::close("admin_data");			
+				AJXP_XMLWriter::close("admin_data");
 			break;
 			
 			case "update_role_right" :
@@ -188,6 +197,28 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 			
 			break;		
 			
+			case "update_role_default" :
+
+				if(!isSet($httpVars["role_id"])
+					|| !isSet($httpVars["default_value"]))
+				{
+					AJXP_XMLWriter::header();
+					AJXP_XMLWriter::sendMessage(null, $mess["ajxp_conf.61"]);
+					AJXP_XMLWriter::close();
+					return ;
+				}
+				$role = AuthService::getRole($httpVars["role_id"]);
+				if($role === false) {
+					throw new Exception("Cannot find role!");
+				}
+                $role->setDefault(($httpVars["default_value"] == "true"));
+				AuthService::updateRole($role);
+				AJXP_XMLWriter::header("admin_data");
+				print(AJXP_XMLWriter::writeRoleRepositoriesData($role));
+				AJXP_XMLWriter::close("admin_data");
+
+			break;
+
 			case "get_custom_params" :
 				$confStorage = ConfService::getConfStorageImpl();
 				AJXP_XMLWriter::header("admin_data");
@@ -265,9 +296,8 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					AJXP_XMLWriter::close();
 					return;						
 				}
-				$forbidden = array("guest", "share");
-				$new_user_login = AJXP_Utils::sanitize(SystemTextEncoding::magicDequote($httpVars["new_user_login"]), AJXP_SANITIZE_HTML_STRICT);
-				if(AuthService::userExists($new_user_login) || in_array($new_user_login, $forbidden))
+				$new_user_login = AJXP_Utils::sanitize(SystemTextEncoding::magicDequote($httpVars["new_user_login"]), AJXP_SANITIZE_EMAILCHARS);
+				if(AuthService::userExists($new_user_login) || AuthService::isReservedUserId($new_user_login))
 				{
 					AJXP_XMLWriter::header();
 					AJXP_XMLWriter::sendMessage(null, $mess["ajxp_conf.43"]);
@@ -287,7 +317,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				AuthService::createUser($new_user_login, $httpVars["new_user_pwd"]);
 				AJXP_XMLWriter::header();
 				AJXP_XMLWriter::sendMessage($mess["ajxp_conf.44"], null);
-				AJXP_XMLWriter::reloadFileList($new_user_login);
+				AJXP_XMLWriter::reloadDataNode("", $new_user_login);
 				AJXP_XMLWriter::close();
 														
 			break;
@@ -303,7 +333,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				$user->save();
 				AJXP_XMLWriter::header();
 				AJXP_XMLWriter::sendMessage($mess["ajxp_conf.45"].$httpVars["user_id"], null);
-				AJXP_XMLWriter::reloadFileList(false);
+				AJXP_XMLWriter::reloadCurrentNode(true);
 				AJXP_XMLWriter::close();
 				
 			break;
@@ -486,8 +516,28 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 			case  "get_drivers_definition":
 				
 				AJXP_XMLWriter::header("drivers");
-				print(ConfService::availableDriversToXML("param"));
+				print(AJXP_XMLWriter::replaceAjxpXmlKeywords(ConfService::availableDriversToXML("param", "", true)));
 				AJXP_XMLWriter::close("drivers");
+				
+				
+			break;
+			
+			case  "get_templates_definition":
+				
+				AJXP_XMLWriter::header("repository_templates");
+				$repositories = ConfService::getRepositoriesList();
+				foreach ($repositories as $repo){
+					if(!$repo->isTemplate) continue;
+					$repoId = $repo->getUniqueId();
+					$repoLabel = $repo->getDisplay();
+					$repoType = $repo->getAccessType();
+					print("<template repository_id=\"$repoId\" repository_label=\"$repoLabel\" repository_type=\"$repoType\">");
+					foreach($repo->getOptionsDefined() as $optionName){
+						print("<option name=\"$optionName\"/>");
+					}
+					print("</template>");
+				}
+				AJXP_XMLWriter::close("repository_templates");
 				
 				
 			break;
@@ -496,27 +546,58 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 			
 				$options = array();
 				$repDef = $httpVars;
-				unset($repDef["get_action"]);
+                $isTemplate = isSet($httpVars["sf_checkboxes_active"]);
+                unset($repDef["get_action"]);
+                unset($repDef["sf_checkboxes_active"]);
 				$this->parseParameters($repDef, $options);
 				if(count($options)){
 					$repDef["DRIVER_OPTIONS"] = $options;
 				}
-				// NOW SAVE THIS REPOSITORY!
-				$newRep = ConfService::createRepositoryFromArray(0, $repDef);
-				if(is_file(INSTALL_PATH."/server/tests/plugins/test.ajxp_".$newRep->getAccessType().".php"))
-				{
-				    chdir(INSTALL_PATH."/server/tests/plugins");
-					include(INSTALL_PATH."/server/tests/plugins/test.ajxp_".$newRep->getAccessType().".php");
-					$className = "ajxp_".$newRep->getAccessType();
-					$class = new $className();
-					$result = $class->doRepositoryTest($newRep);
-					if(!$result){
-						AJXP_XMLWriter::header();
-						AJXP_XMLWriter::sendMessage(null, $class->failedInfo);
-						AJXP_XMLWriter::close();
-						return;
+				if(strstr($repDef["DRIVER"], "ajxp_template_") !== false){
+					$templateId = substr($repDef["DRIVER"], 14);
+					$templateRepo = ConfService::getRepositoryById($templateId);
+					$newRep = $templateRepo->createTemplateChild($repDef["DISPLAY"], $repDef["DRIVER_OPTIONS"]);
+				}else{
+                    $pServ = AJXP_PluginsService::getInstance();
+                    $driver = $pServ->getPluginByTypeName("access", $repDef["DRIVER"]);
+
+					$newRep = ConfService::createRepositoryFromArray(0, $repDef);
+                    $testFile = $driver->getBaseDir()."/test.".$newRep->getAccessType()."Access.php";
+					if(!$isTemplate && is_file($testFile))
+					{
+					    //chdir(AJXP_TESTS_FOLDER."/plugins");
+						include($testFile);
+						$className = $newRep->getAccessType()."AccessTest";
+						$class = new $className();
+						$result = $class->doRepositoryTest($newRep);
+						if(!$result){
+							AJXP_XMLWriter::header();
+							AJXP_XMLWriter::sendMessage(null, $class->failedInfo);
+							AJXP_XMLWriter::close();
+							return;
+						}
 					}
+                    // Apply default metasource if any
+                    if($driver != null && $driver->getConfigs()!=null ){
+                        $confs = $driver->getConfigs();
+                        if(!empty($confs["DEFAULT_METASOURCES"])){
+                            $metaIds = AJXP_Utils::parseCSL($confs["DEFAULT_METASOURCES"]);
+                            $metaSourceOptions = array();
+                            foreach($metaIds as $metaID){
+                                $metaPlug = $pServ->getPluginById($metaID);
+                                if($metaPlug == null) continue;
+                                $pNodes = $metaPlug->getManifestRawContent("//param[@default]", "nodes");
+                                $defaultParams = array();
+                                foreach($pNodes as $domNode){
+                                    $defaultParams[$domNode->getAttribute("name")] = $domNode->getAttribute("default");
+                                }
+                                $metaSourceOptions[$metaID] = $defaultParams;
+                            }
+                            $newRep->addOption("META_SOURCES", $metaSourceOptions);
+                        }
+                    }
 				}
+
                 if ($this->repositoryExists($newRep->getDisplay()))
                 {
 					AJXP_XMLWriter::header();
@@ -524,19 +605,21 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					AJXP_XMLWriter::close();
 					return;
                 }
+                if($isTemplate){
+                    $newRep->isTemplate = true;
+                }
 				$res = ConfService::addRepository($newRep);
 				AJXP_XMLWriter::header();
 				if($res == -1){
 					AJXP_XMLWriter::sendMessage(null, $mess["ajxp_conf.51"]);
 				}else{
-					$confStorage = ConfService::getConfStorageImpl();		
 					$loggedUser = AuthService::getLoggedUser();
 					$loggedUser->setRight($newRep->getUniqueId(), "rw");
 					$loggedUser->save();
 					AuthService::updateUser($loggedUser);
 					
 					AJXP_XMLWriter::sendMessage($mess["ajxp_conf.52"], null);
-					AJXP_XMLWriter::reloadFileList($newRep->getDisplay());
+					AJXP_XMLWriter::reloadDataNode("", $newRep->getUniqueId());
 					AJXP_XMLWriter::reloadRepositoryList();
 				}
 				AJXP_XMLWriter::close();
@@ -549,12 +632,16 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				$repId = $httpVars["repository_id"];
 				$repList = ConfService::getRootDirsList();
 				//print_r($repList);
-				AJXP_XMLWriter::header("admin_data");		
 				if(!isSet($repList[$repId])){
-					AJXP_XMLWriter::close("admin_data");
-					return ;
+					throw new Exception("Cannot find repository with id $repId");
 				}
-				$repository = $repList[$repId];			
+				$repository = $repList[$repId];	
+				$pServ = AJXP_PluginsService::getInstance();
+				$plug = $pServ->getPluginById("access.".$repository->accessType);
+				if($plug == null){
+					throw new Exception("Cannot find access driver (".$repository->accessType.") for repository!");
+				}				
+				AJXP_XMLWriter::header("admin_data");		
 				$slug = $repository->getSlug();
 				if($slug == "" && $repository->isWriteable()){
 					$repository->setSlug();
@@ -563,6 +650,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				$nested = array();
 				print("<repository index=\"$repId\"");
 				foreach ($repository as $name => $option){
+					if(strstr($name, " ")>-1) continue;
 					if(!is_array($option)){					
 						if(is_bool($option)){
 							$option = ($option?"true":"false");
@@ -587,20 +675,34 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 						}
 					}
 					// Add SLUG
-					print("<param name=\"AJXP_SLUG\" value=\"".$repository->getSlug()."\"/>");
+					if(!$repository->isTemplate) print("<param name=\"AJXP_SLUG\" value=\"".$repository->getSlug()."\"/>");
 					print("</repository>");
 				}else{
 					print("/>");
 				}
-				$pServ = AJXP_PluginsService::getInstance();
-				$plug = $pServ->getPluginById("access.".$repository->accessType);
+				if($repository->hasParent()){
+					$parent = ConfService::getRepositoryById($repository->getParentId());
+					if(isSet($parent) && $parent->isTemplate){
+						$parentLabel = $parent->getDisplay();
+						$parentType = $parent->getAccessType();
+						print("<template repository_id=\"".$repository->getParentId()."\" repository_label=\"$parentLabel\" repository_type=\"$parentType\">");
+						foreach($parent->getOptionsDefined() as $parentOptionName){
+							print("<option name=\"$parentOptionName\"/>");
+						}
+						print("</template>");						
+					}
+				}
 				$manifest = $plug->getManifestRawContent("server_settings/param");
+                $manifest = AJXP_XMLWriter::replaceAjxpXmlKeywords($manifest);
 				print("<ajxpdriver name=\"".$repository->accessType."\">$manifest</ajxpdriver>");
 				print("<metasources>");
-				$metas = $pServ->getPluginsByType("meta");
+				$metas = $pServ->getPluginsByType("metastore");
+				$metas = array_merge($metas, $pServ->getPluginsByType("meta"));
+                $metas = array_merge($metas, $pServ->getPluginsByType("index"));
 				foreach ($metas as $metaPlug){
 					print("<meta id=\"".$metaPlug->getId()."\">");
 					$manifest = $metaPlug->getManifestRawContent("server_settings/param");
+                    $manifest = AJXP_XMLWriter::replaceAjxpXmlKeywords($manifest);
 					print($manifest);
 					print("</meta>");
 				}
@@ -637,9 +739,9 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 							$repo->addOption($key, $value);
 						}
 					}
-					if(is_file(INSTALL_PATH."/server/tests/plugins/test.ajxp_".$repo->getAccessType().".php")){
-					    chdir(INSTALL_PATH."/server/tests/plugins");
-						include(INSTALL_PATH."/server/tests/plugins/test.ajxp_".$repo->getAccessType().".php");
+					if(is_file(AJXP_TESTS_FOLDER."/plugins/test.ajxp_".$repo->getAccessType().".php")){
+					    chdir(AJXP_TESTS_FOLDER."/plugins");
+						include(AJXP_TESTS_FOLDER."/plugins/test.ajxp_".$repo->getAccessType().".php");
 						$className = "ajxp_".$repo->getAccessType();
 						$class = new $className();
 						$result = $class->doRepositoryTest($repo);
@@ -658,7 +760,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					AJXP_XMLWriter::sendMessage(null, $mess["ajxp_conf.53"]);
 				}else{
 					AJXP_XMLWriter::sendMessage($mess["ajxp_conf.54"], null);					
-					AJXP_XMLWriter::reloadDataNode("", (isSet($httpVars["newLabel"])?AJXP_Utils::decodeSecureMagic($httpVars["newLabel"]):false));
+					AJXP_XMLWriter::reloadDataNode("", (isSet($httpVars["newLabel"])?$repId:false));
 					AJXP_XMLWriter::reloadRepositoryList();
 				}
 				AJXP_XMLWriter::close();		
@@ -682,6 +784,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					$repoOptions = array();
 				}
 				$repoOptions[$metaSourceType] = $options;
+				uksort($repoOptions, array($this,"metaSourceOrderingFunction"));
 				$repo->addOption("META_SOURCES", $repoOptions);
 				ConfService::replaceRepository($repId, $repo);
 				AJXP_XMLWriter::header();
@@ -700,6 +803,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				$repoOptions = $repo->getOption("META_SOURCES");
 				if(is_array($repoOptions) && array_key_exists($metaSourceId, $repoOptions)){
 					unset($repoOptions[$metaSourceId]);
+					uksort($repoOptions, array($this,"metaSourceOrderingFunction"));
 					$repo->addOption("META_SOURCES", $repoOptions);
 					ConfService::replaceRepository($repId, $repo);
 				}
@@ -723,6 +827,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					$repoOptions = array();
 				}
 				$repoOptions[$metaSourceId] = $options;
+				uksort($repoOptions, array($this,"metaSourceOrderingFunction"));
 				$repo->addOption("META_SOURCES", $repoOptions);
 				ConfService::replaceRepository($repId, $repo);
 				AJXP_XMLWriter::header();
@@ -748,8 +853,9 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				}else if(isSet($httpVars["shared_file"])){
 					AJXP_XMLWriter::header();
 					$element = basename($httpVars["shared_file"]);
-					$publicletData = $this->loadPublicletData(PUBLIC_DOWNLOAD_FOLDER."/".$element.".php");
-					unlink(PUBLIC_DOWNLOAD_FOLDER."/".$element.".php");
+					$dlFolder = ConfService::getCoreConf("PUBLIC_DOWNLOAD_FOLDER");
+					$publicletData = $this->loadPublicletData($dlFolder."/".$element.".php");
+					unlink($dlFolder."/".$element.".php");
 					AJXP_XMLWriter::sendMessage($mess["ajxp_shared.13"], null);
 					AJXP_XMLWriter::reloadDataNode();
 					AJXP_XMLWriter::close();					
@@ -764,9 +870,8 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					AJXP_XMLWriter::reloadDataNode();
 					AJXP_XMLWriter::close();								
 				}else{
-					$forbidden = array("guest", "share");
-					if(!isset($httpVars["user_id"]) || $httpVars["user_id"]=="" 
-						|| in_array($httpVars["user_id"], $forbidden)
+					if(!isset($httpVars["user_id"]) || $httpVars["user_id"]==""
+						|| AuthService::isReservedUserId($httpVars["user_id"])
 						|| $loggedUser->getId() == $httpVars["user_id"])
 					{
 						AJXP_XMLWriter::header();
@@ -796,6 +901,52 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				
 			break;			
 			
+			case "get_plugin_manifest" : 
+
+				$ajxpPlugin = AJXP_PluginsService::getInstance()->getPluginById($httpVars["plugin_id"]);
+				AJXP_XMLWriter::header("admin_data");
+				echo(AJXP_XMLWriter::replaceAjxpXmlKeywords($ajxpPlugin->getManifestRawContent()));
+				$definitions = $ajxpPlugin->getConfigsDefinitions();
+				$values = $ajxpPlugin->getConfigs();
+                if(!is_array($values)) $values = array();
+                echo("<plugin_settings_values>");
+                foreach($values as $key => $value){
+                    if($definitions[$key]["type"] == "array" && is_array($value)){
+                        $value = implode(",", $value);
+                    }else if($definitions[$key]["type"] == "boolean"){
+                        $value = ($value === true || $value === "true" || $value == 1?"true":"false");
+                    }else if($definitions[$key]["type"] == "textarea"){
+                        //$value = str_replace("\\n", "\n", $value);
+                    }
+                    echo("<param name=\"$key\" value=\"".AJXP_Utils::xmlEntities($value)."\"/>");
+                }
+                if($ajxpPlugin->getType() != "core"){
+                    echo("<param name=\"AJXP_PLUGIN_ENABLED\" value=\"".($ajxpPlugin->isEnabled()?"true":"false")."\"/>");
+                }
+                echo("</plugin_settings_values>");
+                if(file_exists($ajxpPlugin->getBaseDir()."/plugin_doc.html")){
+                    echo("<plugin_doc><![CDATA[".file_get_contents($ajxpPlugin->getBaseDir()."/plugin_doc.html")."]]></plugin_doc>");
+                }
+				AJXP_XMLWriter::close("admin_data");
+				
+			break;
+			
+			case "edit_plugin_options":
+				
+				$options = array();
+				$this->parseParameters($httpVars, $options);
+				$confStorage = ConfService::getConfStorageImpl();
+				$confStorage->savePluginConfig($httpVars["plugin_id"], $options);
+				@unlink(AJXP_PLUGINS_CACHE_FILE);
+				@unlink(AJXP_PLUGINS_REQUIRES_FILE);				
+				AJXP_XMLWriter::header();
+				AJXP_XMLWriter::sendMessage($mess["ajxp_conf.97"], null);
+				AJXP_XMLWriter::reloadDataNode();
+				AJXP_XMLWriter::close();
+				
+				
+			break;
+
 			default:
 			break;
 		}
@@ -804,14 +955,95 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 	}
 	
 	
+	function listPlugins($dir, $root = NULL){
+        $dir = "/$dir";
+		AJXP_Logger::logAction("Listing plugins"); // make sure that the logger is started!
+		$pServ = AJXP_PluginsService::getInstance();
+		$activePlugins = $pServ->getActivePlugins();
+		$types = $pServ->getDetectedPlugins();
+		$uniqTypes = array("core");
+		if($dir == "/plugins"){
+			AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist" template_name="ajxp_conf.plugins_folder">
+			<column messageId="ajxp_conf.101" attributeName="ajxp_label" sortType="String"/>
+			</columns>');		
+			ksort($types);
+			foreach( $types as $t => $tPlugs){
+				if(in_array($t, $uniqTypes))continue;
+				$meta = array(
+					"icon" 		=> "folder_development.png",					
+					"plugin_id" => $t
+				);
+				AJXP_XMLWriter::renderNode("/$root/plugins/".$t, ucfirst($t), false, $meta);
+			}
+		}else if($dir == "/core"){
+			AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist" switchDisplayMode="list"  template_name="ajxp_conf.plugins">
+			<column messageId="ajxp_conf.101" attributeName="ajxp_label" sortType="String"/>
+			<column messageId="ajxp_conf.102" attributeName="plugin_id" sortType="String"/>
+			<column messageId="ajxp_conf.103" attributeName="plugin_description" sortType="String"/>
+			</columns>');		
+			$mess = ConfService::getMessages();
+			foreach($uniqTypes as $type){
+				if(!isset($types[$type])) continue;				
+				foreach($types[$type] as $pId => $pObject){
+					$meta = array(				
+						"icon" 		=> ($type == "core"?"preferences_desktop.png":"preferences_plugin.png"),
+						"ajxp_mime" => "ajxp_plugin",
+						"plugin_id" => $pObject->getId(),						
+						"plugin_description" => $pObject->getManifestDescription()
+					);
+					if($type == "core"){
+						if($pObject->getId() == "core.ajaxplorer"){
+							$label = "AjaXplorer Core";
+						}else{
+							$label =  sprintf($mess["ajxp_conf.100"], $pObject->getName());
+						}
+					}else{
+						if($activePlugins[$pObject->getId()] !== true) continue;
+						$label = $pObject->getManifestLabel();
+					}
+					AJXP_XMLWriter::renderNode("/$root/plugins/".$pObject->getId(), $label, true, $meta);
+				}				
+			}
+		}else{
+			$split = explode("/", $dir);
+			if(empty($split[0])) array_shift($split);
+			$type = $split[1];
+			AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist" switchDisplayMode="full" template_name="ajxp_conf.plugin_detail">
+			<column messageId="ajxp_conf.101" attributeName="ajxp_label" sortType="String" defaultWidth="10%"/>
+			<column messageId="ajxp_conf.102" attributeName="plugin_id" sortType="String" defaultWidth="10%"/>
+			<column messageId="ajxp_conf.103" attributeName="plugin_description" sortType="String" defaultWidth="60%"/>
+			<column messageId="ajxp_conf.104" attributeName="enabled" sortType="String" defaultWidth="10%"/>
+			<column messageId="ajxp_conf.105" attributeName="can_active" sortType="String" defaultWidth="10%"/>
+			</columns>');
+            
+			foreach($types[$type] as $pId => $pObject){
+				$errors = "OK";
+				try{
+					$pObject->performChecks();
+				}catch(Exception $e){
+					$errors = "ERROR : ".$e->getMessage();
+				}
+				$meta = array(				
+					"icon" 		=> "preferences_plugin.png",
+					"ajxp_mime" => "ajxp_plugin",
+					"can_active"	=> $errors,
+					"enabled"	=> ($pObject->isEnabled()?"Yes":"No"),
+					"plugin_id" => $pObject->getId(),
+					"plugin_description" => $pObject->getManifestDescription()
+				);
+				AJXP_XMLWriter::renderNode("/$root/plugins/".$pObject->getId(), $pObject->getManifestLabel(), true, $meta);
+			}
+		}
+	}
+	
 	function listUsers(){
 		AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist" template_name="ajxp_conf.users">
-			<column messageId="ajxp_conf.6" attributeName="ajxp_label" sortType="String"/>
-			<column messageId="ajxp_conf.7" attributeName="isAdmin" sortType="String"/>
-			<column messageId="ajxp_conf.70" attributeName="ajxp_roles" sortType="String"/>
-			<column messageId="ajxp_conf.62" attributeName="rights_summary" sortType="String"/>
+			<column messageId="ajxp_conf.6" attributeName="ajxp_label" sortType="String" defaultWidth="40%"/>
+			<column messageId="ajxp_conf.7" attributeName="isAdmin" sortType="String" defaultWidth="10%"/>
+			<column messageId="ajxp_conf.70" attributeName="ajxp_roles" sortType="String" defaultWidth="15%"/>
+			<column messageId="ajxp_conf.62" attributeName="rights_summary" sortType="String" defaultWidth="15%"/>
 			</columns>');		
-		if(!ENABLE_USERS) return ;
+		if(!AuthService::usersEnabled()) return ;
 		$users = AuthService::listUsers();
 		$mess = ConfService::getMessages();
 		$repos = ConfService::getRepositoriesList();
@@ -827,7 +1059,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
         ksort($userArray);
         foreach($userArray as $userObject) {
 			$isAdmin = $userObject->isAdmin();
-			$userId = AJXP_Utils::xmlEntities($userObject->getId());
+			$userId = $userObject->getId();
 			$icon = "user".($userId=="guest"?"_guest":($isAdmin?"_admin":""));
 			if($userObject->hasParent()){
 				$icon = "user_child";
@@ -839,15 +1071,17 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 				$r = array();
 				foreach ($repos as $repoId => $repository){
 					if($repository->getAccessType() == "ajxp_shared") continue;
-					if($userObject->canWrite($repoId)) $r[] = $repository->getDisplay()." (rw)";
-					else if($userObject->canRead($repoId)) $r[] = $repository->getDisplay()." (r)";
+                    if(!$userObject->canRead($repoId) && !$userObject->canWrite($repoId)) continue;
+                    $rs = ($userObject->canRead($repoId) ? "r" : "");
+                    $rs .= ($userObject->canWrite($repoId) ? "w" : "");
+                    $r[] = $repository->getDisplay()." (".$rs.")";
 				}
 				$rightsString = implode(", ", $r);
 			}
 			AJXP_XMLWriter::renderNode("/users/".$userId, $userId, true, array(
 				"isAdmin" => $mess[($isAdmin?"ajxp_conf.14":"ajxp_conf.15")], 
 				"icon" => $icon.".png",				
-				"rights_summary" => AJXP_Utils::xmlEntities($rightsString, true),				
+				"rights_summary" => $rightsString,
 				"ajxp_roles" => implode(", ", array_keys($userObject->getRoles())),
 				"ajxp_mime" => "user".(($userId!="guest"&&$userId!=$loggedUser->getId())?"_editable":"")
 			));
@@ -857,26 +1091,28 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 	function listRoles(){
 		AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist" template_name="ajxp_conf.roles">
 			<column messageId="ajxp_conf.6" attributeName="ajxp_label" sortType="String"/>			
+			<column messageId="ajxp_conf.114" attributeName="is_default" sortType="String"/>
 			<column messageId="ajxp_conf.62" attributeName="rights_summary" sortType="String"/>
-			</columns>');		
-		if(!ENABLE_USERS) return ;
+			</columns>');
+		if(!AuthService::usersEnabled()) return ;
 		$roles = AuthService::getRolesList();
 		$mess = ConfService::getMessages();
 		$repos = ConfService::getRepositoriesList();
         ksort($roles);
         foreach($roles as $roleId => $roleObject) {
-			$icon = "user";
-			$rightsString = "";
 			$r = array();
 			foreach ($repos as $repoId => $repository){
 				if($repository->getAccessType() == "ajxp_shared") continue;
-				if($roleObject->canWrite($repoId)) $r[] = $repository->getDisplay()." (rw)";
-				else if($roleObject->canRead($repoId)) $r[] = $repository->getDisplay()." (r)";
+                if(!$roleObject->canRead($repoId) && !$roleObject->canWrite($repoId)) continue;
+                $rs = ($roleObject->canRead($repoId) ? "r" : "");
+                $rs .= ($roleObject->canWrite($repoId) ? "w" : "");
+                $r[] = $repository->getDisplay()." (".$rs.")";
 			}
 			$rightsString = implode(", ", $r);
 			AJXP_XMLWriter::renderNode("/roles/".$roleId, $roleId, true, array(
 				"icon" => "user_group_new.png",				
-				"rights_summary" => AJXP_Utils::xmlEntities($rightsString, true),				
+				"rights_summary" => $rightsString,
+                "is_default"    => ($roleObject->isDefault() ? "Yes":"No"),
 				"ajxp_mime" => "role"
 			));
 		}
@@ -897,23 +1133,31 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 			<column messageId="ajxp_conf.8" attributeName="ajxp_label" sortType="String"/>
 			<column messageId="ajxp_conf.9" attributeName="accessType" sortType="String"/>
 			<column messageId="ajxp_shared.27" attributeName="owner" sortType="String"/>
+			<column messageId="ajxp_conf.106" attributeName="repository_id" sortType="String"/>
 			</columns>');		
         $repoArray = array();
-        $childRepos = array();        
+        $childRepos = array();
+        $templateRepos = array();        
 		foreach ($repos as $repoIndex => $repoObject){
 			if($repoObject->getAccessType() == "ajxp_conf" || $repoObject->getAccessType() == "ajxp_shared") continue;
 			if(is_numeric($repoIndex)) $repoIndex = "".$repoIndex;
             $name = AJXP_Utils::xmlEntities(SystemTextEncoding::toUTF8($repoObject->getDisplay()));
-			if($repoObject->hasOwner()) {
+			if($repoObject->hasOwner() || $repoObject->hasParent()) {
 				$parentId = $repoObject->getParentId();	        	
 				if(!isSet($childRepos[$parentId])) $childRepos[$parentId] = array();
 				$childRepos[$parentId][] = array("name" => $name, "index" => $repoIndex);
 				continue;
 			}
-            $repoArray[$name] = $repoIndex;
+			if($repoObject->isTemplate){
+				$templateRepos[$name] = $repoIndex;
+			}else{
+	            $repoArray[$name] = $repoIndex;
+			}
         }
-        // Sort the list now by name        
+        // Sort the list now by name
+        ksort($templateRepos);        
         ksort($repoArray);
+        $repoArray = array_merge($templateRepos, $repoArray);
         // Append child repositories
         $sortedArray = array();
         foreach ($repoArray as $name => $repoIndex) {
@@ -926,12 +1170,14 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
         }
         foreach ($sortedArray as $name => $repoIndex) {
             $repoObject =& $repos[$repoIndex];
+            $icon = (($repoObject->hasOwner()||$repoObject->hasParent())?"repo_child.png":"hdd_external_unmount.png");
+            if($repoObject->isTemplate) $icon = "hdd_external_mount.png";
             $metaData = array(
             	"repository_id" => $repoIndex,
-            	"accessType"	=> $repoObject->getAccessType(),
-            	"icon"			=> ($repoObject->hasOwner()?"repo_child.png":"folder_red.png"),
+            	"accessType"	=> ($repoObject->isTemplate?"Template for ":"").$repoObject->getAccessType(),
+            	"icon"			=> $icon,
             	"owner"			=> ($repoObject->hasOwner()?$repoObject->getOwner():""),
-            	"openicon"		=> "folder_red.png",
+            	"openicon"		=> $icon,
             	"parentname"	=> "/repositories",
 				"ajxp_mime" 	=> "repository".($repoObject->isWriteable()?"_editable":"")
             );
@@ -939,24 +1185,25 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 		}
 	}
 	
-	function listLogFiles($dir){	
+	function listLogFiles($dir, $root = NULL){
+        $dir = "/$dir";
 		$logger = AJXP_Logger::getInstance();
 		$parts = explode("/", $dir);
 		if(count($parts)>4){
 			$config = '<columns switchDisplayMode="list" switchGridMode="grid" template_name="ajxp_conf.logs">
-				<column messageId="ajxp_conf.17" attributeName="date" sortType="Date" width="10%"/>
-				<column messageId="ajxp_conf.18" attributeName="ip" sortType="String"/>
-				<column messageId="ajxp_conf.19" attributeName="level" sortType="String"/>
-				<column messageId="ajxp_conf.20" attributeName="user" sortType="String"/>
-				<column messageId="ajxp_conf.21" attributeName="action" sortType="String"/>
-				<column messageId="ajxp_conf.22" attributeName="params" sortType="String"/>
+				<column messageId="ajxp_conf.17" attributeName="date" sortType="MyDate" defaultWidth="10%"/>
+				<column messageId="ajxp_conf.18" attributeName="ip" sortType="String" defaultWidth="10%"/>
+				<column messageId="ajxp_conf.19" attributeName="level" sortType="String" defaultWidth="10%"/>
+				<column messageId="ajxp_conf.20" attributeName="user" sortType="String" defaultWidth="10%"/>
+				<column messageId="ajxp_conf.21" attributeName="action" sortType="String" defaultWidth="10%"/>
+				<column messageId="ajxp_conf.22" attributeName="params" sortType="String" defaultWidth="50%"/>
 			</columns>';				
 			AJXP_XMLWriter::sendFilesListComponentConfig($config);
 			$date = $parts[count($parts)-1];
-			$logger->xmlLogs($dir, $date, "tree");
+			$logger->xmlLogs($dir, $date, "tree", $root."/logs");
 		}else{
 			AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist"><column messageId="ajxp_conf.16" attributeName="ajxp_label" sortType="String"/></columns>');
-			$logger->xmlListLogFiles("tree", (count($parts)>2?$parts[2]:null), (count($parts)>3?$parts[3]:null));
+			$logger->xmlListLogFiles("tree", (count($parts)>2?$parts[2]:null), (count($parts)>3?$parts[3]:null), $root."/logs");
 		}
 	}
 	
@@ -965,7 +1212,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 		$testedParams = array();
 		$passed = AJXP_Utils::runTests($outputArray, $testedParams);
 		AJXP_Utils::testResultsToFile($outputArray, $testedParams);		
-		AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchDisplayMode="list" switchGridMode="fileList" template_name="ajxp_conf.diagnostic"><column messageId="ajxp_conf.23" attributeName="ajxp_label" sortType="String"/><column messageId="ajxp_conf.24" attributeName="data" sortType="String"/></columns>');		
+		AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchDisplayMode="list" switchGridMode="fileList" template_name="ajxp_conf.diagnostic" defaultWidth="20%"><column messageId="ajxp_conf.23" attributeName="ajxp_label" sortType="String"/><column messageId="ajxp_conf.24" attributeName="data" sortType="String"/></columns>');		
 		if(is_file(TESTS_RESULT_FILE)){
 			include_once(TESTS_RESULT_FILE);			
 			foreach ($diagResults as $id => $value){
@@ -977,26 +1224,27 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 	
 	function listSharedFiles(){
 		AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist" template_name="ajxp_conf.shared">
-				<column messageId="ajxp_shared.4" attributeName="ajxp_label" sortType="String" width="20%"/>
-				<column messageId="ajxp_shared.27" attributeName="owner" sortType="String" width="20%"/>
-				<column messageId="ajxp_shared.17" attributeName="download_url" sortType="String" width="20%"/>
-				<column messageId="ajxp_shared.6" attributeName="password" sortType="String" width="5%"/>
-				<column messageId="ajxp_shared.7" attributeName="expiration" sortType="String" width="5%"/>
-				<column messageId="ajxp_shared.20" attributeName="expired" sortType="String" width="5%"/>
-				<column messageId="ajxp_shared.14" attributeName="integrity" sortType="String" width="5%" hidden="true"/>
+				<column messageId="ajxp_shared.4" attributeName="ajxp_label" sortType="String" defaultWidth="30%"/>
+				<column messageId="ajxp_shared.27" attributeName="owner" sortType="String" defaultWidth="10%"/>
+				<column messageId="ajxp_shared.17" attributeName="download_url" sortType="String" defaultWidth="40%"/>
+				<column messageId="ajxp_shared.6" attributeName="password" sortType="String" defaultWidth="4%"/>
+				<column messageId="ajxp_shared.7" attributeName="expiration" sortType="String" defaultWidth="4%"/>
+				<column messageId="ajxp_shared.20" attributeName="expired" sortType="String" defaultWidth="4%"/>
+				<column messageId="ajxp_shared.14" attributeName="integrity" sortType="String" defaultWidth="4%" hidden="true"/>
 			</columns>');
-		if(!is_dir(PUBLIC_DOWNLOAD_FOLDER)) return ;		
-		$files = glob(PUBLIC_DOWNLOAD_FOLDER."/*.php");
+		$dlFolder = ConfService::getCoreConf("PUBLIC_DOWNLOAD_FOLDER");
+		if(!is_dir($dlFolder)) return ;		
+		$files = glob($dlFolder."/*.php");
 		if($files === false) return ;
 		$mess = ConfService::getMessages();
 		$loggedUser = AuthService::getLoggedUser();
 		$userId = $loggedUser->getId();
-        if(defined('PUBLIC_DOWNLOAD_URL') && PUBLIC_DOWNLOAD_URL != ""){
-        	$downloadBase = rtrim(PUBLIC_DOWNLOAD_URL, "/");
+		$dlURL = ConfService::getCoreConf("PUBLIC_DOWNLOAD_URL");
+        if($dlURL!= ""){
+        	$downloadBase = rtrim($dlURL, "/");
         }else{
-	        $http_mode = (!empty($_SERVER['HTTPS'])) ? 'https://' : 'http://';
-	        $fullUrl = $http_mode . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']);    
-	        $downloadBase = str_replace("\\", "/", $fullUrl.rtrim(str_replace(INSTALL_PATH, "", PUBLIC_DOWNLOAD_FOLDER), "/"));
+	        $fullUrl = AJXP_Utils::detectServerURL() . dirname($_SERVER['REQUEST_URI']);
+	        $downloadBase = str_replace("\\", "/", $fullUrl.rtrim(str_replace(AJXP_INSTALL_PATH, "", $dlFolder), "/"));
         }
 		
 		foreach ($files as $file){
@@ -1014,8 +1262,18 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 		}
 	}
 	
+	function metaSourceOrderingFunction($key1, $key2){
+		$t1 = array_shift(explode(".", $key1));
+		$t2 = array_shift(explode(".", $key2));
+		if($t1 == "index") return 1;
+        if($t1 == "metastore") return -1;
+		if($t2 == "index") return -1;
+        if($t2 == "metastore") return 1;
+		return 0;
+	}
+	
 	function clearExpiredFiles(){
-		$files = glob(PUBLIC_DOWNLOAD_FOLDER."/*.php");
+		$files = glob(ConfService::getCoreConf("PUBLIC_DOWNLOAD_FOLDER")."/*.php");
 		$loggedUser = AuthService::getLoggedUser();
 		$userId = $loggedUser->getId();
 		$deleted = array();
@@ -1030,6 +1288,7 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 	}
 	
 	protected function loadPublicletData($file){
+        $inputData = null;
 		$lines = file($file);
 		$id = str_replace(".php", "", basename($file));
 		$code = $lines[3] . $lines[4] . $lines[5];
@@ -1064,13 +1323,15 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 		foreach ($repDef as $key => $value)
 		{
 			$value = AJXP_Utils::sanitize(SystemTextEncoding::magicDequote($value));
-			if(strpos($key, "DRIVER_OPTION_")!== false && strpos($key, "DRIVER_OPTION_")==0 && strpos($key, "ajxptype") === false){
+			if(strpos($key, "DRIVER_OPTION_")!== false && strpos($key, "DRIVER_OPTION_")==0 && strpos($key, "ajxptype") === false && strpos($key, "_checkbox") === false){
 				if(isSet($repDef[$key."_ajxptype"])){
 					$type = $repDef[$key."_ajxptype"];
 					if($type == "boolean"){
 						$value = ($value == "true"?true:false);
 					}else if($type == "integer"){
 						$value = intval($value);
+					}else if($type == "array"){
+						$value = explode(",", $value);
 					}else if($type == "password" && $userId!=null){						
 	                    if (trim($value != "") && function_exists('mcrypt_encrypt'))
 	                    {
@@ -1082,6 +1343,11 @@ class ajxp_confAccessDriver extends AbstractAccessDriver
 					}
 					unset($repDef[$key."_ajxptype"]);
 				}
+                if(isSet($repDef[$key."_checkbox"])){
+                    $checked = $repDef[$key."_checkbox"] == "checked";
+                    unset($repDef[$key."_checkbox"]);
+                    if(!$checked) continue;
+                }
 				$options[substr($key, strlen("DRIVER_OPTION_"))] = $value;
 				unset($repDef[$key]);
 			}else{

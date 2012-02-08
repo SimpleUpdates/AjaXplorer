@@ -32,6 +32,8 @@ CREATE TABLE ajxp_repo (
  	bcreate BOOLEAN,
  	writeable BOOLEAN, 
  	enabled BOOLEAN ,
+ 	isTemplate BOOLEAN,
+ 	inferOptionsFromParent BOOLEAN,
  	slug VARCHAR(255)
 );
  
@@ -47,4 +49,11 @@ CREATE TABLE ajxp_roles (
 	serial_role TEXT(500) NOT NULL
 );
  
+CREATE TABLE ajxp_plugin_configs (
+  id VARCHAR(50) NOT NULL,
+  configs LONGTEXT NOT NULL,
+  PRIMARY KEY (id)
+);
+
+
 CREATE INDEX ajxp_repo_options_uuid_idx ON ajxp_repo_options ( uuid );

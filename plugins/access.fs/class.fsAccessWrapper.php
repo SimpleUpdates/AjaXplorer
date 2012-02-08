@@ -1,42 +1,30 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The most used and standard plugin : FileSystem access
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ *
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH."/server/classes/interface.AjxpWrapper.php");
-
+/**
+ * @package info.ajaxplorer.plugins
+ * Wrapper for a local filesystem
+ */
 class fsAccessWrapper implements AjxpWrapper {
 		
 	/**
@@ -64,6 +52,7 @@ class fsAccessWrapper implements AjxpWrapper {
     protected static $currentFileKey;
 	protected static $crtZip;
 	protected $realPath;
+    protected static $lastRealSize;
 
     /**
      * Initialize the stream from the given path. 
@@ -90,7 +79,7 @@ class fsAccessWrapper implements AjxpWrapper {
 		if($insideZip){    	
 			$zipPath = $split[0];
 			$localPath = $split[1];
-			require_once(INSTALL_PATH."/server/classes/pclzip.lib.php");
+			require_once(AJXP_BIN_FOLDER."/pclzip.lib.php");
 			//print($streamType.$path);
 		   	if($streamType == "file"){	
 		   		if(self::$crtZip == null ||  !is_array(self::$currentListingKeys)){
@@ -125,7 +114,7 @@ class fsAccessWrapper implements AjxpWrapper {
 				$crtZip = new PclZip(AJXP_Utils::securePath(realpath($repoObject->getOption("PATH")).$zipPath));
 				$liste = $crtZip->listContent();				
 				if($storeOpenContext) self::$crtZip = $crtZip;
-				$folders = array(); $files = array();
+				$folders = array(); $files = array();$builtFolders = array();
 				if($localPath[strlen($localPath)-1] != "/") $localPath.="/";
 				foreach ($liste as $item){
 					$stored = $item["stored_filename"];			
@@ -133,26 +122,37 @@ class fsAccessWrapper implements AjxpWrapper {
 					$pathPos = strpos($stored, $localPath);
 					if($pathPos !== false){
 						$afterPath = substr($stored, $pathPos+strlen($localPath));
-						if($afterPath != "" && (strpos($afterPath, "/")=== false || strpos($afterPath, "/") == strlen($afterPath)-1)){
+						if($afterPath != "" && substr_count($afterPath, "/") < 2){
 							$statValue = array();
-							$statValue[2] = $statValue["mode"] = ($item["folder"]?"00040000":"0100000");
-							$statValue[7] = $statValue["size"] = $item["size"];
-							$statValue[8] = $statValue["atime"] = $item["mtime"];
-							$statValue[9] = $statValue["mtime"] = $item["mtime"];
-							$statValue[10] = $statValue["ctime"] = $item["mtime"];
-							if(strpos($afterPath, "/") == strlen($afterPath)-1){
-								$afterPath = substr($afterPath, 0, strlen($afterPath)-1);
-							}
-							//$statValue["filename"] = $zipPath.$localPath.$afterPath;
-							if($item["folder"]){
-								$folders[$afterPath] = $statValue;
-							}else{
-								$files[$afterPath] = $statValue;
-							}
-						}						
+                            if(substr_count($afterPath, "/") == 0){
+                                $statValue[2] = $statValue["mode"] = ($item["folder"]?"00040000":"0100000");
+                                $statValue[7] = $statValue["size"] = $item["size"];
+                                $statValue[8] = $statValue["atime"] = $item["mtime"];
+                                $statValue[9] = $statValue["mtime"] = $item["mtime"];
+                                $statValue[10] = $statValue["ctime"] = $item["mtime"];
+                                if(strpos($afterPath, "/") == strlen($afterPath)-1){
+                                    $afterPath = substr($afterPath, 0, strlen($afterPath)-1);
+                                }
+                                //$statValue["filename"] = $zipPath.$localPath.$afterPath;
+                                if($item["folder"]){
+                                    $folders[$afterPath] = $statValue;
+                                }else{
+                                    $files[$afterPath] = $statValue;
+                                }
+                            }else{
+                                $afterPath = array_shift(explode("/", $afterPath));
+                                if(isSet($folders[$afterPath]) || isSet($builtFolders[$afterPath])) continue;
+                                $statValue[2] = $statValue["mode"] = "00040000";
+                                $statValue[7] = $statValue["size"] = 0;
+                                $statValue[8] = $statValue["atime"] = $item["mtime"];
+                                $statValue[9] = $statValue["mtime"] = $item["mtime"];
+                                $statValue[10] = $statValue["ctime"] = $item["mtime"];
+                                $builtFolders[$afterPath] = $statValue;
+                            }
+						}
 					}
 				}
-				self::$currentListing = array_merge($folders, $files);
+				self::$currentListing = array_merge($folders, $builtFolders, $files);
 				self::$currentListingKeys = array_keys(self::$currentListing);
 				self::$currentListingIndex = 0;
 				return -1;
@@ -200,7 +200,7 @@ class fsAccessWrapper implements AjxpWrapper {
     public static function copyFileInStream($path, $stream){
     	$fp = fopen(self::getRealFSReference($path), "rb");
     	while (!feof($fp)) {
-    		if(!ini_get("safe_mode")) set_time_limit(60);
+    		if(!ini_get("safe_mode")) @set_time_limit(60);
  			$data = fread($fp, 4096);
  			fwrite($stream, $data, strlen($data));
     	}
@@ -218,7 +218,7 @@ class fsAccessWrapper implements AjxpWrapper {
      * @param String $path Maybe in the form "ajxp.fs://repositoryId/pathToFile" 
      * @param String $mode
      * @param unknown_type $options
-     * @param unknown_type $opened_path
+     * @param unknown_type $context
      * @return unknown
      */
     public function stream_open($path, $mode, $options, &$context)
@@ -250,8 +250,9 @@ class fsAccessWrapper implements AjxpWrapper {
         $PROBE_REAL_SIZE = ConfService::getConf("PROBE_REAL_SIZE");    	
     	if(is_resource($this->fp)){
     		$statValue = fstat($this->fp);
+            fsAccessWrapper::$lastRealSize = false;
     		if($statValue[2] > 0 && $PROBE_REAL_SIZE && !ini_get("safe_mode")){
-	    		$statValue[7] = $statValue["size"] = floatval(trim($this->getTrueSizeOnFileSystem($this->realPath)));
+	    		fsAccessWrapper::$lastRealSize = floatval(trim($this->getTrueSizeOnFileSystem($this->realPath)));
     		}
 	    	return $statValue;    		
     	}
@@ -377,7 +378,11 @@ class fsAccessWrapper implements AjxpWrapper {
 			return rewinddir($this->dH);
 		}
 	}
-	
+
+    public static function getLastRealSize(){
+        return self::$lastRealSize;
+    }
+
 	protected function getTrueSizeOnFileSystem($file) {
 		if (!(strtoupper(substr(PHP_OS, 0, 3)) == 'WIN')){
 			$cmd = "stat -L -c%s \"".$file."\"";

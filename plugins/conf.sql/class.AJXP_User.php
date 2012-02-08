@@ -1,42 +1,26 @@
 <?php
-/**
- * @package info.ajaxplorer
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : User abstraction
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
-defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH."/server/classes/class.AbstractAjxpUser.php");
-require_once(INSTALL_PATH."/server/classes/dibi.compact.php");
+defined('AJXP_EXEC') or die( 'Access not allowed');
+require_once(AJXP_BIN_FOLDER."/dibi.compact.php");
 
 /**
  * AJXP_User class for the conf.sql driver.
@@ -123,7 +107,7 @@ class AJXP_User extends AbstractAjxpUser
 	 * Does the configuration storage exist?
 	 * Will return true if all schema objects are available.
 	 * 
-	 * @see server/classes/AbstractAjxpUser#storageExists()
+	 * @see AbstractAjxpUser#storageExists()
 	 * @return boolean false if storage does not exist
 	 */
 	function storageExists(){		
@@ -180,7 +164,7 @@ class AJXP_User extends AbstractAjxpUser
 	 * @param $rightString String String containing access rights, one of '' | 'r' | 'rw'
 	 * @return null or -1 on error
 	 * 
-	 * @see server/classes/AbstractAjxpUser#setRight($rootDirId, $rightString)
+	 * @see AbstractAjxpUser#setRight($rootDirId, $rightString)
 	 */
 	function setRight($rootDirId, $rightString){
 		
@@ -234,7 +218,7 @@ class AJXP_User extends AbstractAjxpUser
 	 * 
 	 * @param $rootDirId String Repository Unique ID
 	 * @return null or -1 on error
-	 * @see server/classes/AbstractAjxpUser#removeRights($rootDirId)
+	 * @see AbstractAjxpUser#removeRights($rootDirId)
 	 */
 	function removeRights($rootDirId){
 		if (array_key_exists($rootDirId, $this->rights)) {
@@ -245,7 +229,7 @@ class AJXP_User extends AbstractAjxpUser
 				return -1;
 			}
 			
-			$this->log('REMOVE RIGHTS: [Login]: '.$this->getId().' [Repository UUID]:'.$rootDirId.' [Rights]:'.$rightString);
+			$this->log('REMOVE RIGHTS: [Login]: '.$this->getId().' [Repository UUID]:'.$rootDirId.' [Rights]:'.$this->rights[$rootDirId]);
 			unset($this->rights[$rootDirId]);
 		}
 	}
@@ -256,10 +240,13 @@ class AJXP_User extends AbstractAjxpUser
 	 * @param $prefName String Name of the preference.
 	 * @param $prefValue String Value to assign to the preference.
 	 * @return null or -1 on error.
-	 * @see server/classes/AbstractAjxpUser#setPref($prefName, $prefValue)
+	 * @see AbstractAjxpUser#setPref($prefName, $prefValue)
 	 */
 	function setPref($prefName, $prefValue){
-		
+
+        if($prefName == "CUSTOM_PARAMS"){
+            $prefValue = serialize($prefValue);
+        }
 		// Prevent a query if the preferences are identical to the existing preferences.
 		if (array_key_exists($prefName, $this->prefs) && $this->prefs[$prefName] == $prefValue) {
 			return;
@@ -305,6 +292,14 @@ class AJXP_User extends AbstractAjxpUser
 		}
 		
 	}
+
+    function getPref($prefName){
+        $p = parent::getPref($prefName);
+        if($prefName == "CUSTOM_PARAMS" && isSet($p)){
+            return unserialize($p);
+        }
+        return $p;
+    }
 	
 	/**
 	 * Add a user bookmark.
@@ -313,7 +308,7 @@ class AJXP_User extends AbstractAjxpUser
 	 * @param $title String Title of the bookmark
 	 * @param $repId String Repository Unique ID
 	 * @return null or -1 on error.
-	 * @see server/classes/AbstractAjxpUser#addBookmark($path, $title, $repId)
+	 * @see AbstractAjxpUser#addBookmark($path, $title, $repId)
 	 */
 	function addBookmark($path, $title="", $repId = -1){
 		if(!isSet($this->bookmarks)) $this->bookmarks = array();
@@ -348,7 +343,7 @@ class AJXP_User extends AbstractAjxpUser
 	 * 
 	 * @param $path String String of the path of the bookmark to remove.
 	 * @return null or -1 on error.
-	 * @see server/classes/AbstractAjxpUser#removeBookmark($path)
+	 * @see AbstractAjxpUser#removeBookmark($path)
 	 */
 	function removeBookmark($path){
 		$repId = ConfService::getCurrentRootDirIndex();
@@ -381,7 +376,7 @@ class AJXP_User extends AbstractAjxpUser
 	 * @param $path String Path of the bookmark to rename.
 	 * @param $title New title to give the bookmark.
 	 * @return null or -1 on error.
-	 * @see server/classes/AbstractAjxpUser#renameBookmark($path, $title)
+	 * @see AbstractAjxpUser#renameBookmark($path, $title)
 	 */
 	function renameBookmark($path, $title){
 		$repId = ConfService::getCurrentRootDirIndex();
@@ -415,7 +410,7 @@ class AJXP_User extends AbstractAjxpUser
 	/**
 	 * Load initial user data (Rights, Preferences and Bookmarks).
 	 * 
-	 * @see server/classes/AbstractAjxpUser#load()
+	 * @see AbstractAjxpUser#load()
 	 */
 	function load(){
 		$this->log('Loading all user data..');
@@ -464,14 +459,22 @@ class AJXP_User extends AbstractAjxpUser
 			}else{
 				$this->rights["ajxp.roles"] = array();
 			}
-		}		
+		}
+        if(isSet($this->rights["ajxp.actions"])){
+            $object = unserialize($this->rights["ajxp.actions"]);
+            if(is_array($object)){
+                $this->rights["ajxp.actions"] = $object;
+            }else{
+                unset($this->rights["ajxp.actions"]);
+            }
+        }
 
 	}
 	
 	/**
 	 * Save user rights, preferences and bookmarks.
 	 * 
-	 * @see server/classes/AbstractAjxpUser#save()
+	 * @see AbstractAjxpUser#save()
 	 */
 	function save(){
 		$this->log('Saving user...');
@@ -492,7 +495,15 @@ class AJXP_User extends AbstractAjxpUser
 				'repo_uuid' => 'ajxp.roles', 
 				'rights'	=> serialize($this->rights['ajxp.roles'])));
 		}
-	}	
+        // update specific actions rights
+        dibi::query("DELETE FROM [ajxp_user_rights] WHERE [login]='".$this->getId()."' AND [repo_uuid]='ajxp.actions'");
+        if($this->rights["ajxp.actions"] && is_array($this->rights["ajxp.actions"]) && count($this->rights["ajxp.actions"])){
+            dibi::query("INSERT INTO [ajxp_user_rights]", array(
+                'login' => $this->getId(),
+                'repo_uuid' => 'ajxp.actions',
+                'rights'	=> serialize($this->rights['ajxp.actions'])));
+        }
+	}
 	
 	/**
 	 * Get Temporary Data.
@@ -504,7 +515,7 @@ class AJXP_User extends AbstractAjxpUser
 	function getTemporaryData($key){
 		$dirPath = $this->storage->getOption("USERS_DIRPATH");
 		if($dirPath == ""){
-			$dirPath = INSTALL_PATH."/server/users";
+			$dirPath = AJXP_INSTALL_PATH."/data/users";
 			AJXP_Logger::logAction("getTemporaryData", array("Warning" => "The conf.sql driver is missing a mandatory option USERS_DIRPATH!"));
 		}
 		return AJXP_Utils::loadSerialFile($dirPath."/".$this->getId()."/-temp-".$key.".ser");
@@ -521,7 +532,7 @@ class AJXP_User extends AbstractAjxpUser
 	function saveTemporaryData($key, $value){
 		$dirPath = $this->storage->getOption("USERS_DIRPATH");
 		if($dirPath == ""){
-			$dirPath = INSTALL_PATH."/server/users";
+			$dirPath = AJXP_INSTALL_PATH."/data/users";
 			AJXP_Logger::logAction("setTemporaryData", array("Warning" => "The conf.sql driver is missing a mandatory option USERS_DIRPATH!"));
 		}
 		return AJXP_Utils::saveSerialFile($dirPath.$this->getId()."-temp-".$key.".ser", $value);
@@ -557,7 +568,6 @@ class AJXP_User extends AbstractAjxpUser
 				$deletedSubUsers[] = $childId;
 			}
 		} catch (DibiException $e) {
-			$this->log('Failed to delete user, Reason: '.$e->getMessage());				
 			throw new Exception('Failed to delete user, Reason: '.$e->getMessage());
 		}
 	}

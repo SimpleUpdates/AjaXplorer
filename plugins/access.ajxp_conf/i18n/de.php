@@ -1,14 +1,24 @@
 <?php
-//---------------------------------------------------------------------------------------------------
-//
-//	AjaXplorer
-//
-//	Copyright 2007-2010 Charles du Jeu - LGPL
-//  www.Ajaxplorer.info
-//
+/*
+* Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
+* This file is part of AjaXplorer.
+*
+* AjaXplorer is free software: you can redistribute it and/or modify
+* it under the terms of the GNU Affero General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* AjaXplorer is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU Affero General Public License for more details.
+*
+* You should have received a copy of the GNU Affero General Public License
+* along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+*
+* The latest code can be found at <http://www.ajaxplorer.info/>.
+*/
 //	german translation: Axel Otterstätter <axel.otterstaetter@googlemail.com>
-//
-//---------------------------------------------------------------------------------------------------
 
 $mess=array(
 "1" => "Konfigurationsdaten",
@@ -100,5 +110,31 @@ $mess=array(
 "87" => "Aktionen für diese Rolle erfolgreich aktualisiert",
 "88" => "Dieses Repository wurde in der Config-Datei angelegt, über das GUI können die Quellen für die Meta-Daten nicht aktualisiert werden.",
 "89" => "Spezielle Benutzerdaten",
+"90" => "Repository",
+"91" => "Vorlagen",
+"92" => "Neue Vorlage erstellen",
+"93" => "Bearbeiten",
+"94" => "Mehrere Bearbeiten",
+"95" => "Eine Bezeichnung und einen Treiber für den Datenzugriff wählen (Alle Bereich auf vorgeschriebene Felder prüfen, wenn sich die Maus auf einer Bezeichnung befindet, dann werden weitere Infos angezeigt).",
+"96" => "Wenn eine Bezeichnung vergeben und der Treiber ausgewählt wurde, dann aktivieren Sie die Felder die in der Vorlage ausgefüllt sein sollen mit Hilfe der Chexckboxen. Die übrigen Felder kann der Benutzer ändern. Wenn ein Feld aktiviert und leer gelassen wird, dann wird das Feld vor dem Benutzer versteckt.",
+"repository_access_key" => "N",
+"97" => "Optionen des Plugins erfolgreich aktualisiert",
+"98" => "Grundkonfiguration",
+"99" => "Plugins",
+"100" => "Allgemeine '%s' Plugin-Optionen",
+"101" => "Name",
+"102" => "Bezeichnung",
+"103" => "Beschreibung",
+"104" => "Aktiv",
+"105" => "Automatic checks",
+"106" => "Unique Identifier",
+"107" => "Plugin Configurations",
+"108" => "Documentation",
+"109" => "Global Configurations",
+"110" => "Repositories & Users",
+"111" => "Logs & Other Data",
+"112" => "<b>Apply this role by default</b> to all new users.",
+"113" => "Role status was successfully modified",
+"114" => "Default",
 );
 ?>

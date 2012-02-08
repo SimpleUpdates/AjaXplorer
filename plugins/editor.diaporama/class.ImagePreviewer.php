@@ -1,40 +1,30 @@
 <?php
-/**
- * @package info.ajaxplorer
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : Class for handling image_proxy, etc... Will rely on the StreamWrappers.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
+
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
+/**
+ * @package info.ajaxplorer.plugins
+ * Generate an image thumbnail and send the thumb/full version to the browser
+ */
 class ImagePreviewer extends AJXP_Plugin {
 
 	public function switchAction($action, $httpVars, $filesVars){
@@ -65,8 +55,11 @@ class ImagePreviewer extends AJXP_Plugin {
 				header("Content-Type: ".AJXP_Utils::getImageMimeType(basename($cId))."; name=\"".basename($cId)."\"");
 				header("Content-Length: ".strlen($data));
 				header('Cache-Control: public');
-				print($data);	
-				
+                header("Pragma:");
+                header("Last-Modified: " . gmdate("D, d M Y H:i:s", time()-10000) . " GMT");
+                header("Expires: " . gmdate("D, d M Y H:i:s", time()+5*24*3600) . " GMT");
+				print($data);
+
 			}else{
 	 			$filesize = filesize($destStreamURL.$file);
 	 			
@@ -74,7 +67,10 @@ class ImagePreviewer extends AJXP_Plugin {
 				header("Content-Type: ".AJXP_Utils::getImageMimeType(basename($file))."; name=\"".basename($file)."\"");
 				header("Content-Length: ".$filesize);
 				header('Cache-Control: public');
-				
+                header("Pragma:");
+                header("Last-Modified: " . gmdate("D, d M Y H:i:s", time()-10000) . " GMT");
+                header("Expires: " . gmdate("D, d M Y H:i:s", time()+5*24*3600) . " GMT");
+
 				$class = $streamData["classname"];
 				$stream = fopen("php://output", "a");
 				call_user_func(array($streamData["classname"], "copyFileInStream"), $destStreamURL.$file, $stream);
@@ -85,20 +81,31 @@ class ImagePreviewer extends AJXP_Plugin {
 		}
 	}
 	
+	/**
+	 * 
+	 * @param AJXP_Node $oldFile
+	 * @param AJXP_Node $newFile
+	 * @param Boolean $copy
+	 */
 	public function removeThumbnail($oldFile, $newFile = null, $copy = false){
-		if(!$this->handleMime($oldFile)) return;
+		if($oldFile == null) return ;
+		if(!$this->handleMime($oldFile->getUrl())) return;
 		if($newFile == null || $copy == false){
-			AJXP_Logger::debug("Should find cache item ".$oldFile);
-			AJXP_Cache::clearItem("diaporama_200", $oldFile);			
+			AJXP_Logger::debug("Should find cache item ".$oldFile->getUrl());
+			AJXP_Cache::clearItem("diaporama_200", $oldFile->getUrl());			
 		}
 	}
 	
-	public function generateThumbnail($masterFile, $targetFile){
-		require_once(INSTALL_PATH."/plugins/editor.diaporama/PThumb.lib.php");
+	public function generateThumbnail400($masterFile, $targetFile){
+		return $this->generateThumbnail($masterFile, $targetFile, 380);
+	}
+	
+	public function generateThumbnail($masterFile, $targetFile, $size = 200){
+		require_once(AJXP_INSTALL_PATH."/plugins/editor.diaporama/PThumb.lib.php");
 		$pThumb = new PThumb($this->pluginConf["THUMBNAIL_QUALITY"]);
 		if(!$pThumb->isError()){
 			$pThumb->remote_wrapper = $this->streamData["classname"];
-			$sizes = $pThumb->fit_thumbnail($masterFile, 200, -1, 1, true);		
+			$sizes = $pThumb->fit_thumbnail($masterFile, $size, -1, 1, true);		
 			$pThumb->print_thumbnail($masterFile,$sizes[0],$sizes[1],false, false, $targetFile);
 			if($pThumb->isError()){
 				print_r($pThumb->error_array);
@@ -112,15 +119,26 @@ class ImagePreviewer extends AJXP_Plugin {
 		}		
 	}
 	
-	public function extractImageMetadata($currentNode, &$metadata, $wrapperClassName, &$realFile){
-		$isImage = AJXP_Utils::is_image($currentNode);
-		$metadata["is_image"] = $isImage;
+	//public function extractImageMetadata($currentNode, &$metadata, $wrapperClassName, &$realFile){
+	/**
+	 * Enrich node metadata
+	 * @param AJXP_Node $ajxpNode
+	 */
+	public function extractImageMetadata(&$ajxpNode){
+		$currentPath = $ajxpNode->getUrl();
+		$wrapperClassName = $ajxpNode->wrapperClassName;
+		$isImage = AJXP_Utils::is_image($currentPath);
+		$ajxpNode->is_image = $isImage;
+		if(!$isImage) return;
 		$setRemote = false;
 		$remoteWrappers = $this->pluginConf["META_EXTRACTION_REMOTEWRAPPERS"];
+        if(is_string($remoteWrappers)){
+            $remoteWrappers = explode(",",$remoteWrappers);
+        }
 		$remoteThreshold = $this->pluginConf["META_EXTRACTION_THRESHOLD"];		
 		if(in_array($wrapperClassName, $remoteWrappers)){
-			if($remoteThreshold != 0 && isSet($metadata["bytesize"])){
-				$setRemote = ($metadata["bytesize"] > $remoteThreshold);
+			if($remoteThreshold != 0 && isSet($ajxpNode->bytesize)){
+				$setRemote = ($ajxpNode->bytesize > $remoteThreshold);
 			}else{
 				$setRemote = true;
 			}
@@ -128,25 +146,20 @@ class ImagePreviewer extends AJXP_Plugin {
 		if($isImage)
 		{
 			if($setRemote){
-				$metadata["image_type"] = "N/A";
-				$metadata["image_width"] = "N/A";
-				$metadata["image_height"] = "N/A";
-				$metadata["readable_dimension"] = "";
+				$ajxpNode->image_type = "N/A";
+				$ajxpNode->image_width = "N/A";
+				$ajxpNode->image_height = "N/A";
+				$ajxpNode->readable_dimension = "";
 			}else{
-				if(!isSet($realFile)){
-					$realFile = call_user_func(array($wrapperClassName, "getRealFSReference"), $currentNode, true);
-					$isRemote = call_user_func(array($wrapperClassName, "isRemote"));
-					if($isRemote){
-						register_shutdown_function("unlink", $realFile);
-					}
-				}
-				list($width, $height, $type, $attr) = getimagesize($realFile);
-				$metadata["image_type"] = image_type_to_mime_type($type);
-				$metadata["image_width"] = $width;
-				$metadata["image_height"] = $height;
-				$metadata["readable_dimension"] = $width."px X ".$height."px";
+				$realFile = $ajxpNode->getRealFile();
+				list($width, $height, $type, $attr) = @getimagesize($realFile);
+				$ajxpNode->image_type = image_type_to_mime_type($type);
+				$ajxpNode->image_width = $width;
+				$ajxpNode->image_height = $height;
+				$ajxpNode->readable_dimension = $width."px X ".$height."px";
 			}
 		}
+		//AJXP_Logger::debug("CURRENT NODE IN EXTRACT IMAGE METADATA ", $ajxpNode);
 	}
 	
 	protected function handleMime($filename){

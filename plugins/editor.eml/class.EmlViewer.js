@@ -1,36 +1,21 @@
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The "online edition" manager, encapsulate the CodePress highlighter for some extensions.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
 Class.create("EmlViewer", AbstractEditor, {
 
@@ -108,7 +93,39 @@ Class.create("EmlViewer", AbstractEditor, {
 	cpAttachment : function(event){
 		var container = this.element.down('#treeSelectorCpContainer');
 		this.treeSelector = new TreeSelector(container);
-		this.treeSelector.load();
+		var user = ajaxplorer.user;
+		if(user) var activeRepository = user.getActiveRepository();
+		if(user && user.canCrossRepositoryCopy() && user.hasCrossRepositories()){
+			var firstKey ;
+			var reposList = new Hash();
+			user.getCrossRepositories().each(function(pair){
+				if(!firstKey) firstKey = pair.key;
+				reposList.set(pair.key, pair.value.getLabel());								
+			}.bind(this));
+			if(!user.canWrite()){
+				var nodeProvider = new RemoteNodeProvider();
+				nodeProvider.initProvider({tmp_repository_id:firstKey});
+				var rootNode = new AjxpNode("/", false, MessageHash[373], "folder.png", nodeProvider);								
+				this.treeSelector.load(rootNode);
+			}else{
+				this.treeSelector.load();								
+			}
+			this.treeSelector.setFilterShow(true);							
+			reposList.each(function(pair){
+				this.treeSelector.appendFilterValue(pair.key, pair.value);
+			}.bind(this)); 
+			if(user.canWrite()) this.treeSelector.appendFilterValue(activeRepository, "&lt;"+MessageHash[372]+"&gt;", 'top');
+			this.treeSelector.setFilterSelectedIndex(0);
+			this.treeSelector.setFilterChangeCallback(function(e){
+				externalRepo = this.filterSelector.getValue();
+				var nodeProvider = new RemoteNodeProvider();
+				nodeProvider.initProvider({tmp_repository_id:externalRepo});
+				this.resetAjxpRootNode(new AjxpNode("/", false, MessageHash[373], "folder.png", nodeProvider));
+			});
+		}else{
+			this.treeSelector.load();
+		}				
+		//this.treeSelector.load();
 		var currentAtt = event.target.up("div");
 		var attachmentId = currentAtt.__ATTACHMENT_ID;
 		if(this.fullScreenMode){
@@ -128,13 +145,30 @@ Class.create("EmlViewer", AbstractEditor, {
 		container.down("#eml_cp_ok").observeOnce("click", function(e){
 			Event.stop(e);
 			var selectedNode = this.treeSelector.getSelectedNode();
+			var actionValue = "eml_cp_attachment";
+			var crossCopy = false;
+			var crtRepoType = ajaxplorer.user.repositories.get(ajaxplorer.user.activeRepository).accessType;
+			if(activeRepository && this.treeSelector.getFilterActive(activeRepository)){
+				crossCopy = true;
+			}
 			var connexion = new Connexion();
-			connexion.setParameters({
-				file: this.currentFile,
-				get_action:'eml_cp_attachment',
-				attachment_id:attachmentId,
-				destination:selectedNode
-			});
+			if(crtRepoType == "imap"){
+				connexion.setParameters({
+					file: this.currentFile+"#attachments/"+attachmentId,
+					get_action:crossCopy?"cross_copy":"copy",
+					dest:selectedNode,
+					dest_repository_id:crossCopy?this.treeSelector.filterSelector.getValue():""
+				});				
+			}else{
+				connexion.setParameters({
+					file: this.currentFile,
+					get_action:"eml_cp_attachment",
+					attachment_id:attachmentId,
+					destination:selectedNode,
+					dest_repository_id:this.treeSelector.filterSelector.getValue()
+				});
+                console.log(connexion._parameters);
+			}
 			connexion.onComplete = function(transport){
 				ajaxplorer.actionBar.parseXmlMessage(transport.responseXML);
 			};
@@ -155,6 +189,7 @@ Class.create("EmlViewer", AbstractEditor, {
 		if(html){
 			this.iFrame = new Element('iframe');
 			this.textareaContainer.insert(this.iFrame);
+            this.textareaContainer.setStyle({overflowY:'hidden'});
 			this.iFrameContent = html.firstChild.nodeValue;
 			this.iFrame.contentWindow.document.write(this.iFrameContent);
 			this.iFrame.setStyle({width: '100%', height: '100%', border: '0px'});
@@ -175,7 +210,8 @@ Class.create("EmlViewer", AbstractEditor, {
 			var pre = new Element("pre");
 			pre.insert(XPathSelectSingleNode(xmlDoc, 'email_body/mimepart[@type="plain"]').firstChild.nodeValue);
 			this.textareaContainer.insert(pre);
-			pre.setStyle({display:'block',height: '100%'});
+            this.textareaContainer.setStyle({overflowY:'auto'});
+			pre.setStyle({display:'block',height: '100%',margin:0});
 		}
 	},
 	
@@ -290,5 +326,22 @@ Class.create("EmlViewer", AbstractEditor, {
 		
 		fitHeightToBottom($(this.textareaContainer), $(modal.elementName));
 		this.removeOnLoad(this.textareaContainer);
-	}	
+	},	
+	
+	attachmentCellRenderer : function(element, ajxpNode, type){
+        if(!element) return;
+		if(ajxpNode.getMetadata().get("eml_attachments") == "0") {
+			if(type == "row") element.update('<span class="text_label"> </span>');
+			return;
+		}
+		element.setStyle({
+			backgroundImage:'url("plugins/editor.eml/attach.png")',
+			backgroundRepeat: 'no-repeat', 
+			backgroundPosition: (type=="thumb" ? '2px 2px': '5px 4px')
+		});
+		if(type == "row"){
+			element.update('<span class="text_label"> </span>');
+		}
+		element.setAttribute("title", ajxpNode.getMetadata().get("eml_attachments")+" attachments");
+	}
 });

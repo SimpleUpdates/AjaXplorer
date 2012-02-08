@@ -1,48 +1,42 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The "admin" driver, to make use of the GUI to manage AjaXplorer settings.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ *
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
-
+/**
+ * @package info.ajaxplorer.plugins
+ * @class ajxpSharedAccessDriver
+ * AJXP_Plugin to access the shared elements of the current user
+ */
 class ajxpSharedAccessDriver extends AbstractAccessDriver 
 {	
-	
+
+    function initRepository(){
+        require_once AJXP_INSTALL_PATH."/".AJXP_PLUGINS_FOLDER."/action.share/class.ShareCenter.php";        
+    }
+
 	function switchAction($action, $httpVars, $fileVars){
 		if(!isSet($this->actions[$action])) return;
 		parent::accessPreprocess($action, $httpVars, $fileVars);
 		$loggedUser = AuthService::getLoggedUser();
-		if(!ENABLE_USERS) return ;
+		if(!AuthService::usersEnabled()) return ;
 		
 		if($action == "edit"){
 			if(isSet($httpVars["sub_action"])){
@@ -105,53 +99,15 @@ class ajxpSharedAccessDriver extends AbstractAccessDriver
 				AJXP_XMLWriter::header();
 				foreach ($files as $index => $element){
 					$element = basename($element);
-					if($mime == "shared_repository"){
-						$repo = ConfService::getRepositoryById($element);
-						if(!$repo->hasOwner() || $repo->getOwner() != $loggedUser->getId()){
-							AJXP_XMLWriter::sendMessage(null, $mess["ajxp_shared.12"]);
-							break;
-						}else{
-							$res = ConfService::deleteRepository($element);
-							if($res == -1){
-								AJXP_XMLWriter::sendMessage(null, $mess["ajxp_conf.51"]);
-								break;
-							}else{
-								if($index == count($files)-1){
-									AJXP_XMLWriter::sendMessage($mess["ajxp_conf.59"], null);						
-									AJXP_XMLWriter::reloadDataNode();
-								}
-							}
-						}
-					}else if( $mime == "shared_user" ){
-						$confDriver = ConfService::getConfStorageImpl();
-						$object = $confDriver->createUserObject($element);
-						if(!$object->hasParent() || $object->getParent() != $loggedUser->getId()){
-							AJXP_XMLWriter::sendMessage(null, $mess["ajxp_shared.12"]);
-							break;
-						}else{
-							$res = AuthService::deleteUser($element);
-							if($index == count($files)-1){				
-								AJXP_XMLWriter::sendMessage($mess["ajxp_conf.60"], null);
-								AJXP_XMLWriter::reloadDataNode();
-							}
-						}
-					}else if( $mime == "shared_file" ){					
-						$publicletData = $this->loadPublicletData(PUBLIC_DOWNLOAD_FOLDER."/".$element.".php");
-						if(isSet($publicletData["OWNER_ID"]) && $publicletData["OWNER_ID"] == $loggedUser->getId()){
-					        require_once(INSTALL_PATH."/server/classes/class.PublicletCounter.php");
-			        		PublicletCounter::delete($element);
-							unlink(PUBLIC_DOWNLOAD_FOLDER."/".$element.".php");
-							if($index == count($files)-1){
-								AJXP_XMLWriter::sendMessage($mess["ajxp_shared.13"], null);
-								AJXP_XMLWriter::reloadDataNode();
-							}
-						}else{
-							AJXP_XMLWriter::sendMessage(null, $mess["ajxp_shared.12"]);
-							break;
-						}
-					}
+                    $mime = array_pop(explode("shared_", $mime));
+                    ShareCenter::deleteSharedElement($mime, $element, $loggedUser);
+                    if($mime == "repository") $out = $mess["ajxp_conf.59"];
+                    else if($mime == "user") $out = $mess["ajxp_conf.60"];
+                    else if($mime == "file") $out = $mess["ajxp_shared.13"];
 				}
-				AJXP_XMLWriter::close();			
+                AJXP_XMLWriter::sendMessage($out, null);
+                AJXP_XMLWriter::reloadDataNode();
+				AJXP_XMLWriter::close();
 			break;
 			
 			case "clear_expired" :
@@ -173,8 +129,7 @@ class ajxpSharedAccessDriver extends AbstractAccessDriver
 				$selection = new UserSelection();
 				$selection->initFromHttpVars();
 				$elements = $selection->getFiles();
-		        require_once(INSTALL_PATH."/server/classes/class.PublicletCounter.php");
-				foreach ($elements as $element){
+		        foreach ($elements as $element){
 					PublicletCounter::reset(str_replace(".php", "", basename($element)));
 				}
 				AJXP_XMLWriter::header();
@@ -198,21 +153,24 @@ class ajxpSharedAccessDriver extends AbstractAccessDriver
 				<column messageId="ajxp_shared.6" attributeName="password" sortType="String" width="5%"/>
 				<column messageId="ajxp_shared.7" attributeName="expiration" sortType="String" width="5%"/>				
 			</columns>');
-		if(!is_dir(PUBLIC_DOWNLOAD_FOLDER)) return ;		
-		$files = glob(PUBLIC_DOWNLOAD_FOLDER."/*.php");
+		$dlFolder = ConfService::getCoreConf("PUBLIC_DOWNLOAD_FOLDER");
+		if(!is_dir($dlFolder)) return ;		
+		$files = glob($dlFolder."/*.php");
 		$mess = ConfService::getMessages();
 		$loggedUser = AuthService::getLoggedUser();
 		$userId = $loggedUser->getId();
-        if(defined('PUBLIC_DOWNLOAD_URL') && PUBLIC_DOWNLOAD_URL != ""){
-        	$downloadBase = rtrim(PUBLIC_DOWNLOAD_URL, "/");
+		$dlURL = ConfService::getCoreConf("PUBLIC_DOWNLOAD_URL");
+        if($dlURL!= ""){
+        	$downloadBase = rtrim($dlURL, "/");
         }else{
-	        $http_mode = (!empty($_SERVER['HTTPS'])) ? 'https://' : 'http://';
-	        $fullUrl = $http_mode . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']);    
-	        $downloadBase = str_replace("\\", "/", $fullUrl.rtrim(str_replace(INSTALL_PATH, "", PUBLIC_DOWNLOAD_FOLDER), "/"));
+	        $fullUrl = AJXP_Utils::detectServerURL() . dirname($_SERVER['REQUEST_URI']);
+	        $downloadBase = str_replace("\\", "/", $fullUrl.rtrim(str_replace(AJXP_INSTALL_PATH, "", $dlFolder), "/"));
         }
 		
 		foreach ($files as $file){
-			$publicletData = $this->loadPublicletData($file);			
+            $id = array_shift(explode(".", basename($file)));
+            if(strlen($id) != 32) continue;
+			$publicletData = ShareCenter::loadPublicletData($id);
 			if(isset($publicletData["OWNER_ID"]) && $publicletData["OWNER_ID"] != $userId){
 				continue;
 			}
@@ -230,41 +188,29 @@ class ajxpSharedAccessDriver extends AbstractAccessDriver
 	}
 	
 	function clearExpiredFiles(){
-		$files = glob(PUBLIC_DOWNLOAD_FOLDER."/*.php");
+		$files = glob(ConfService::getCoreConf("PUBLIC_DOWNLOAD_FOLDER")."/*.php");
 		$loggedUser = AuthService::getLoggedUser();
 		$userId = $loggedUser->getId();
 		$deleted = array();
 		foreach ($files as $file){
-			$publicletData = $this->loadPublicletData($file);			
+            $id = array_shift(explode(".", basename($file)));
+            if(strlen($id) != 32) continue;
+			$publicletData = ShareCenter::loadPublicletData($id);
 			if(!isSet($publicletData["OWNER_ID"]) || $publicletData["OWNER_ID"] != $userId){
 				continue;
 			}
 			if(isSet($publicletData["EXPIRE_TIME"]) && is_numeric($publicletData["EXPIRE_TIME"]) && $publicletData["EXPIRE_TIME"] > 0 && $publicletData["EXPIRE_TIME"] < time()){
 				unlink($file);
 				$deleted[] = basename($file);
-		        require_once(INSTALL_PATH."/server/classes/class.PublicletCounter.php");
         		PublicletCounter::delete(str_replace(".php", "", basename($file)));
 			}
 		}
 		return $deleted;
 	}
-	
-	protected function loadPublicletData($file){		
-		$lines = file($file);
-		$id = str_replace(".php", "", basename($file));
-		$code = $lines[3] . $lines[4] . $lines[5];
-		eval($code);
-		$dataModified = (md5($inputData) != $id);
-		$publicletData = unserialize($inputData);
-		$publicletData["SECURITY_MODIFIED"] = $dataModified;		
-        require_once(INSTALL_PATH."/server/classes/class.PublicletCounter.php");
-        $publicletData["DOWNLOAD_COUNT"] = PublicletCounter::getCount($id);		
-		return $publicletData;
-	}
-	
+
 	function listUsers(){
 		AJXP_XMLWriter::sendFilesListComponentConfig('<columns switchGridMode="filelist"><column messageId="ajxp_conf.6" attributeName="ajxp_label" sortType="String"/><column messageId="ajxp_shared.10" attributeName="repo_accesses" sortType="String"/></columns>');		
-		if(!ENABLE_USERS) return ;
+		if(!AuthService::usersEnabled()) return ;
 		$users = AuthService::listUsers();
 		$mess = ConfService::getMessages();
 		$loggedUser = AuthService::getLoggedUser();		
@@ -338,7 +284,8 @@ class ajxpSharedAccessDriver extends AbstractAccessDriver
             $repoObject =& $repos[$repoIndex];
             $repoAccesses = array();
 			foreach ($users as $userId => $userObject) {
-				if(!$userObject->hasParent()) continue;
+				//if(!$userObject->hasParent()) continue;
+                if($userObject->getId() == $loggedUser->getId()) continue;
 				if($userObject->canWrite($repoIndex)){
 					$repoAccesses[] = $userId." (rw)";
 				}else if($userObject->canRead($repoIndex)){

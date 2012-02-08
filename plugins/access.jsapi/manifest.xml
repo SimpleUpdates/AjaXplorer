@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ajxpdriver name="jsapi" label="Javascript Api Browser" description="Browse AjaXplorer Javascript classes and interfaces">
-	<client_settings icon="plugins/access.ajxp_conf/admin.png">
+<ajxpdriver name="jsapi" label="CONF_MESSAGE[Javascript Api Browser]" description="CONF_MESSAGE[Browse AjaXplorer Javascript classes and interfaces. Helper for developpers, but also good demonstration of how Ajaxplorer data can be fed by something different than a remote server filesystem!]"  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="file:../core.ajaxplorer/ajxp_registry.xsd">
+	<client_settings icon="plugins/access.jsapi/admin.png">
 		<resources>
 			<i18n namespace="jsapi" path="plugins/access.jsapi/i18n" />
 			<img_library alias="jsapi_images" path="plugins/access.jsapi/icons"/>
@@ -60,16 +60,16 @@
 						<div id="locationbar_cont">
 							<div style="height: 100%;" class="separator"></div>
 							<div style="padding-top : 5px;">
-								<div id="locationBar" ajxpClass="LocationBar" ajxpOptions="{flexTo:'locationbar_cont'}"></div>
+								<div id="locationBar" ajxpClass="LocationBar" ajxpOptions='{"flexTo":"locationbar_cont"}'></div>
 							</div>
 						</div>
 					</div>
 				</div>
-				<div id="browser" ajxpClass="AjxpPane" ajxpOptions="{fit:'height',fitParent:'ajxp_desktop'}">
-					<div id="vertical_splitter" style="background-color: #fff;" ajxpClass="Splitter" ajxpOptions="{direction: 'vertical', initA: 700, minA:50,fit:'height',fitParent:'browser'}">
-						<div id="sidebar_splitter" style="float:left; overflow:hidden;" ajxpClass="Splitter" ajxpOptions="{direction:'vertical',initA:150,maxA:300}">
-							<div id="topPane" ajxpClass="FoldersTree" ajxpOptions="{display:'dz'}" ajxpPaneHeader="jsapi.1" style="border: 1px solid #676965;"></div>		
-					    	<div id="content_pane" ajxpClass="FilesList" ajxpOptions="'list'" style="border: 1px solid #676965;"></div>
+				<div id="browser" ajxpClass="AjxpPane" ajxpOptions='{"fit":"height","fitParent":"ajxp_desktop"}'>
+					<div id="vertical_splitter" style="background-color: #fff;" ajxpClass="Splitter" ajxpOptions='{"direction": "vertical", "initA": 700, "minA":50,"fit":"height","fitParent":"browser"}'>
+						<div id="sidebar_splitter" style="float:left; overflow:hidden;" ajxpClass="Splitter" ajxpOptions='{"direction":"vertical","initA":150,"maxA":300}'>
+							<div id="topPane" ajxpClass="FoldersTree" ajxpOptions='{"display":"dz"}' ajxpPaneHeader="jsapi.1" style="border: 1px solid #676965;"></div>
+					    	<div id="content_pane" ajxpClass="FilesList" ajxpOptions='"list"' style="border: 1px solid #676965;"></div>
 					    </div>
 					    <div id="info_panel" ajxpClass="InfoPanel" ajxpPaneHeader="jsapi.3" style="border: 1px solid #676965;"></div>
 					</div>
@@ -89,7 +89,7 @@
 		</client_configs>			
 	</registry_contributions>
 	<dependencies>
-		<!-- Stream Wrapper Access -->
-		<plugin pluginName="editor.codemirror"/>
-	</dependencies>						
+		<activePlugin pluginName="gui.ajax"/>
+		<activePlugin pluginName="editor.codemirror"/>
+	</dependencies>
 </ajxpdriver>

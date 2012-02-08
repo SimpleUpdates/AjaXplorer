@@ -1,47 +1,30 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : SQL database logging plugin.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
+
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH. "/server/classes/class.AbstractLogDriver.php");
-
 /**
+ * @package info.ajaxplorer.plugins
  * SQL Logging Plugin
- * 
  * Requires php bcmath (for inet_dtop/inet_ptod) enabled and php version 5.1 (for DateTime class) minimum
- *
  */
 class sqlLogDriver extends AbstractLogDriver {
 	
@@ -55,6 +38,7 @@ class sqlLogDriver extends AbstractLogDriver {
 	 */
 	function init($options){
 		parent::init($options);
+        require_once(AJXP_BIN_FOLDER."/dibi.compact.php");
 		$this->sqlDriver = $options["SQL_DRIVER"];
 		try {
 			dibi::connect($this->sqlDriver);		
@@ -144,7 +128,7 @@ class sqlLogDriver extends AbstractLogDriver {
 	 *
 	 * @return String Formatted XML node for insertion into the log reader
 	 */	
-	function formatXmlLogItem($node, $icon, $dateattrib, $filename, $remote_ip, $log_level, $user, $action, $params, $is_file = 1) {
+	function formatXmlLogItem($node, $icon, $dateattrib, $filename, $remote_ip, $log_level, $user, $action, $params, $is_file = 1, $rootPath = "/logs") {
 		$remote_ip = $this->inet_dtop($remote_ip);
 		$log_unixtime = strtotime($dateattrib);
 		$log_datetime = date("m-d-y", $log_unixtime) . " " . date("G:i:s", $log_unixtime);
@@ -156,7 +140,7 @@ class sqlLogDriver extends AbstractLogDriver {
 		$action = htmlentities($action);
 		$params = htmlentities($params);
 
-		return "<$node icon=\"{$icon}\" date=\"{$log_datetime}\" is_file=\"{$is_file}\" filename=\"/logs/{$log_year}/{$log_month}/{$log_date}/{$log_datetime}\" ajxp_mime=\"log\" ip=\"{$remote_ip}\" level=\"{$log_level}\" user=\"{$user}\" action=\"{$action}\" params=\"{$params}\"/>";
+		return "<$node icon=\"{$icon}\" date=\"{$log_datetime}\" ajxp_modiftime=\"{$log_unixtime}\" is_file=\"{$is_file}\" filename=\"{$rootPath}/{$log_year}/{$log_month}/{$log_date}/{$log_datetime}\" ajxp_mime=\"log\" ip=\"{$remote_ip}\" level=\"{$log_level}\" user=\"{$user}\" action=\"{$action}\" params=\"{$params}\"/>";
 	}
 	
 	/**
@@ -185,7 +169,7 @@ class sqlLogDriver extends AbstractLogDriver {
 	 * @param String [optional] $year
 	 * @param String [optional] $month
 	 */
-	function xmlListLogFiles($nodeName="file", $year=null, $month=null) {
+	function xmlListLogFiles($nodeName="file", $year=null, $month=null, $rootPath = "/logs") {
 
 		$xml_strings = array();
 		
@@ -210,7 +194,7 @@ class sqlLogDriver extends AbstractLogDriver {
 					$logM = date('m', $log_time);
 					$date = $r['logdate'];
 				
-					$xml_strings[$r['logdate']] = $this->formatXmlLogList($nodeName, 'toggle_log.png', $display, $display, $date, "/logs/$fullYear/$logM/$date");
+					$xml_strings[$r['logdate']] = $this->formatXmlLogList($nodeName, 'toggle_log.png', $display, $display, $date, "$rootPath/$fullYear/$logM/$date");
 					//"<$nodeName icon=\"toggle_log.png\" date=\"$display\" display=\"$display\" text=\"$date\" is_file=\"0\" filename=\"/logs/$fullYear/$fullMonth/$date\"/>";
 				}
 			
@@ -234,7 +218,7 @@ class sqlLogDriver extends AbstractLogDriver {
 					$fullMonth = date('F', $month_time);
 					$logM = date('m', $month_time);
 				
-					$xml_strings[$r['month']] = $this->formatXmlLogList($nodeName, 'x-office-calendar.png', $logM, $logM, $logM, "/logs/$fullYear/$logM");
+					$xml_strings[$r['month']] = $this->formatXmlLogList($nodeName, 'x-office-calendar.png', $logM, $logM, $logM, "$rootPath/$fullYear/$logM");
 					//"<$nodeName icon=\"x-office-calendar.png\" date=\"$fullMonth\" display=\"$logM\" text=\"$fullMonth\" is_file=\"0\" filename=\"/logs/$fullYear/$fullMonth\"/>";
 				}
 						
@@ -248,7 +232,7 @@ class sqlLogDriver extends AbstractLogDriver {
 					$year_time = mktime(0,0,0,1,1,$r['year']);
 					$fullYear = $r['year'];
 				
-					$xml_strings[$r['year']] = $this->formatXmlLogList($nodeName, 'x-office-calendar.png', $fullYear, $fullYear, $fullYear, "/logs/$fullYear");
+					$xml_strings[$r['year']] = $this->formatXmlLogList($nodeName, 'x-office-calendar.png', $fullYear, $fullYear, $fullYear, "$rootPath/$fullYear");
 					//"<$nodeName icon=\"x-office-calendar.png\" date=\"$fullYear\" display=\"$fullYear\" text=\"$fullYear\" is_file=\"0\" filename=\"/logs/$fullYear\"/>";
 				}	
 			}
@@ -270,7 +254,7 @@ class sqlLogDriver extends AbstractLogDriver {
 	 * @param String $date Assumed to be m-d-y format.
 	 * @param String [optional] $nodeName
 	 */
-	function xmlLogs($parentDir, $date, $nodeName = "log") {
+	function xmlLogs($parentDir, $date, $nodeName = "log", $rootPath = "/logs") {
 		$start_time = strtotime($date);
 		$end_time = mktime(0,0,0,date('m', $start_time), date('d', $start_time) + 1, date('Y', $start_time));
 		
@@ -285,7 +269,7 @@ class sqlLogDriver extends AbstractLogDriver {
 			$log_items = "";
 		
 			foreach ($result as $r) {
-				$log_items .= SystemTextEncoding::toUTF8($this->formatXmlLogItem($nodeName, 'toggle_log.png', $r['logdate'], $date, $r['remote_ip'], $r['severity'], $r['user'], $r['message'], $r['params']));
+				$log_items .= SystemTextEncoding::toUTF8($this->formatXmlLogItem($nodeName, 'toggle_log.png', $r['logdate'], $date, $r['remote_ip'], $r['severity'], $r['user'], $r['message'], $r['params'], $rootPath));
 			}
 		
 			print($log_items);

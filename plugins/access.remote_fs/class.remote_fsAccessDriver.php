@@ -1,40 +1,29 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : This driver will access another installation of AjaXplorer on a remote machine, thus acting as a proxy.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
+/**
+ * @package info.ajaxplorer.plugins
+ * AJXP_Plugin to access a remote server that implements AjaXplorer API
+ */
 class remote_fsAccessDriver extends AbstractAccessDriver 
 {
 	private $plugCapabilities = array();
@@ -53,7 +42,29 @@ class remote_fsAccessDriver extends AbstractAccessDriver
 		}
 		parent::init($repository, $options);
 	}
-	
+
+    function redirectActionsToMethod(&$contribNode, $arrayActions, $targetMethod){
+        $actionXpath=new DOMXPath($contribNode->ownerDocument);
+        foreach($arrayActions as $index => $value){
+            $arrayActions[$index] = 'action[@name="'.$value.'"]/processing/serverCallback';
+        }
+        $procList = $actionXpath->query(implode(" | ", $arrayActions), $contribNode);
+        foreach($procList as $node){
+            $node->setAttribute("methodName", $targetMethod);
+        }
+    }
+
+    /**
+     * Parse
+     * @param DOMNode $contribNode
+     */
+    protected function parseSpecificContributions(&$contribNode){
+        parent::parseSpecificContributions($contribNode);
+        if($contribNode->nodeName != "actions") return ;
+        $this->redirectActionsToMethod($contribNode, array("upload", "next_to_remote", "trigger_remote_copy"), "uploadActions");
+    }
+
+
 	function switchAction($action, $httpVars, $filesVars){		
 		$secureToken = "";
 		$crtRep = ConfService::getRepository();
@@ -166,7 +177,7 @@ class remote_fsAccessDriver extends AbstractAccessDriver
 					AJXP_XMLWriter::sendMessage(null, "Error : ".intval($response));
 				}else{
 					if($nextFile!=''){
-						AJXP_XMLWriter::triggerBgAction("next_to_remote", array(), "Copying file ".$nextFile." to remote server");
+						AJXP_XMLWriter::triggerBgAction("next_to_remote", array(), "Copying file ".SystemTextEncoding::toUTF8($nextFile)." to remote server");
 					}else{					
 						AJXP_XMLWriter::triggerBgAction("reload_node", array(), "Upload done, reloading client.");
 					}
@@ -183,7 +194,7 @@ class remote_fsAccessDriver extends AbstractAccessDriver
 				{
 					if(substr($boxName, 0, 9) != "userfile_")     continue;
 					AJXP_Logger::debug("Upload : rep_source ", array($rep_source));
-					$err = AJXP_Utils::parseFileDataErrors($boxData, $fancyLoader);
+					$err = AJXP_Utils::parseFileDataErrors($boxData);
 					if($err != null)
 					{
 						$errorCode = $err[0];
@@ -210,7 +221,7 @@ class remote_fsAccessDriver extends AbstractAccessDriver
 					AJXP_Logger::debug("Upload : tmp upload folder", array($destCopy));
 					if(isSet($boxData["input_upload"])){
 						try{
-							$destName .= tempnam($destCopy, "");
+							$destName = tempnam($destCopy, "");
 							AJXP_Logger::debug("Begining reading INPUT stream");
 							$input = fopen("php://input", "r");
 							$output = fopen($destName, "w");
@@ -264,7 +275,7 @@ class remote_fsAccessDriver extends AbstractAccessDriver
 	* @return HttpClient
 	*/
 	function getRemoteConnexion(&$remoteSecureToken, $refreshSessId=false, $repository = null){
-		require_once(INSTALL_PATH."/server/classes/class.HttpClient.php");
+		require_once(AJXP_BIN_FOLDER."/class.HttpClient.php");
 		if($repository != null){
 			$crtRep = $repository;
 		}else{

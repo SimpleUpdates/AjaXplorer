@@ -1,43 +1,35 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The most used and standard plugin : FileSystem access
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ *
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH."/plugins/access.fs/class.fsAccessWrapper.php");
+require_once(AJXP_INSTALL_PATH."/plugins/access.fs/class.fsAccessWrapper.php");
 
+/**
+ * @package info.ajaxplorer.plugins
+ * Encapsulation of the PEAR webDAV client 
+ */
 class webdavAccessWrapper extends fsAccessWrapper {		
+
+    public static $lastException;
 
     /**
      * Initialize the stream from the given path. 
@@ -50,10 +42,30 @@ class webdavAccessWrapper extends fsAccessWrapper {
     	$url = parse_url($path);
     	$repoId = $url["host"];
     	$repoObject = ConfService::getRepositoryById($repoId);
-    	if(!isSet($repoObject)) throw new Exception("Cannot find repository with id ".$repoId);
+    	if(!isSet($repoObject)) {
+            $e = new Exception("Cannot find repository with id ".$repoId);
+            self::$lastException = $e;
+            throw $e;
+        }
 		$path = $url["path"];
 		$host = $repoObject->getOption("HOST");
-		$host = str_replace(array("http", "https"), array("webdav", "webdavs"), $host);
+		$hostParts = parse_url($host);
+        if($hostParts["scheme"] == "https" && !extension_loaded("openssl")){
+            $e = new Exception("Warning you must have the openssl PHP extension loaded to connect an https server!");
+            self::$lastException = $e;
+            throw $e;
+        }
+		$credentials = AJXP_Safe::tryLoadingCredentialsFromSources($hostParts, $repoObject);
+		$user = $credentials["user"];
+		$password = $credentials["password"];
+		if($user!=null && $password!=null){
+			$host = ($hostParts["scheme"]=="https"?"webdavs":"webdav")."://$user:$password@".$hostParts["host"];
+            if(isSet($hostParts["port"])){
+                $host .= ":".$hostParts["port"];
+            }
+		}else{
+			$host = str_replace(array("http", "https"), array("webdav", "webdavs"), $host);
+		}
 		// MAKE SURE THERE ARE NO // OR PROBLEMS LIKE THAT...
 		$basePath = $repoObject->getOption("PATH");		
 		if($basePath[strlen($basePath)-1] == "/"){
@@ -67,6 +79,7 @@ class webdavAccessWrapper extends fsAccessWrapper {
 			$path = substr($path, 1);
 		}
 		// SHOULD RETURN webdav://host_server/uri/to/webdav/folder
+        AJXP_Logger::debug($host.$basePath."/".$path);
 		return $host.$basePath."/".$path;
     }    
     
@@ -192,8 +205,9 @@ class webdavAccessWrapper extends fsAccessWrapper {
 	}
 
 	public static function changeMode($path, $chmodValue){
-		$realPath = self::initPath($path, "file");
-		chmod($realPath, $chmodValue);
+        // DO NOTHING!
+		//$realPath = self::initPath($path, "file");
+		//chmod($realPath, $chmodValue);
 	}
 }
 ?>

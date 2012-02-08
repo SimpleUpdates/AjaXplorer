@@ -1,48 +1,37 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The most used and standard plugin : FileSystem access
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ *
  */
-
 defined('AJXP_EXEC') or die( 'Access not allowed');
+
 
 // This is used to catch exception while downloading
 if(!function_exists('download_exception_handler')){
 	function download_exception_handler($exception){}
 }
 
-require_once(AJXP_INSTALL_PATH."/".SERVER_RESOURCES_FOLDER."/interface.AjxpWebdavProvider.php");
-
+/**
+ * @package info.ajaxplorer.plugins
+ * AJXP_Plugin to access a filesystem. Most "FS" like driver (even remote ones)
+ * extend this one.
+ */
 class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 {
 	/**
@@ -52,6 +41,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 	public $driverConf;
 	protected $wrapperClassName;
 	protected $urlBase;
+    private static $loadedUserBookmarks;
 		
 	function initRepository(){
 		if(is_array($this->pluginConf)){
@@ -59,11 +49,15 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		}else{
 			$this->driverConf = array();
 		}
+		if(isset($this->pluginConf["PROBE_REAL_SIZE"])){
+			// PASS IT TO THE WRAPPER 
+			ConfService::setConf("PROBE_REAL_SIZE", $this->pluginConf["PROBE_REAL_SIZE"]);
+		}
 		$create = $this->repository->getOption("CREATE");
 		$path = $this->repository->getOption("PATH");
 		$recycle = $this->repository->getOption("RECYCLE_BIN");
 		if($create == true){
-			if(!is_dir($path)) @mkdir($path);
+			if(!is_dir($path)) @mkdir($path, 0755, true);
 			if(!is_dir($path)){
 				throw new AJXP_Exception("Cannot create root path for repository (".$this->repository->getDisplay()."). Please check repository configuration or that your folder is writeable!");
 			}
@@ -93,7 +87,18 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 	public function getWrapperClassName(){
 		return $this->wrapperClassName;
 	}
-	
+
+    function redirectActionsToMethod(&$contribNode, $arrayActions, $targetMethod){
+        $actionXpath=new DOMXPath($contribNode->ownerDocument);
+        foreach($arrayActions as $index => $value){
+            $arrayActions[$index] = 'action[@name="'.$value.'"]/processing/serverCallback';
+        }
+        $procList = $actionXpath->query(implode(" | ", $arrayActions), $contribNode);
+        foreach($procList as $node){
+            $node->setAttribute("methodName", $targetMethod);
+        }
+    }
+
 	function disableArchiveBrowsingContributions(&$contribNode){
 		// Cannot use zip features on FTP !
 		// Remove "compress" action
@@ -189,7 +194,9 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 					$localName = ($base==""?"Files":$base).".zip";
 					$this->readFile($file, "force-download", $localName, false, false, true);
 				}else{
-					$this->readFile($this->urlBase.$selection->getUniqueFile(), "force-download");
+					$localName = "";
+					AJXP_Controller::applyHook("dl.localname", array($this->urlBase.$selection->getUniqueFile(), &$localName, $this->wrapperClassName));
+					$this->readFile($this->urlBase.$selection->getUniqueFile(), "force-download", $localName);
 				}
 				
 			break;
@@ -199,7 +206,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				$chunkCount = intval($httpVars["chunk_count"]);
 				$fileId = $this->urlBase.$selection->getUniqueFile();
 				$sessionKey = "chunk_file_".md5($fileId.time());
-				$totalSize = filesize($fileId);
+				$totalSize = $this->filesystemFileSize($fileId);
 				$chunkSize = intval ( $totalSize / $chunkCount ); 
 				$realFile  = call_user_func(array($this->wrapperClassName, "getRealFSReference"), $fileId, true);
 				$chunkData = array(
@@ -274,7 +281,12 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			//------------------------------------
 			case "get_content":
 					
-				$this->readFile($this->urlBase.$selection->getUniqueFile(), "plain");
+				$dlFile = $this->urlBase.$selection->getUniqueFile();
+				if(AJXP_Utils::getStreamingMimeType(basename($dlFile))!==false){
+					$this->readFile($this->urlBase.$selection->getUniqueFile(), "stream_content");					
+				}else{
+					$this->readFile($this->urlBase.$selection->getUniqueFile(), "plain");
+				}
 				
 			break;
 			
@@ -310,6 +322,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			case "copy";
 			case "move";
 				
+			//throw new AJXP_Exception("", 113);
 				if($selection->isEmpty())
 				{
 					throw new AJXP_Exception("", 113);
@@ -332,12 +345,14 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 					AJXP_Logger::logAction(($action=="move"?"Move":"Copy"), array("files"=>$selection, "destination"=>$dest));
 				}
 				$reloadContextNode = true;
-				$reloadDataNode = $dest;
-				
+                if(!(RecycleBinManager::getRelativeRecycle() ==$dest && $this->driverConf["HIDE_RECYCLE"] == true)){
+                    $reloadDataNode = $dest;
+                }
+
 			break;
 			
 			//------------------------------------
-			//	SUPPRIMER / DELETE
+			//	DELETE
 			//------------------------------------
 			case "delete";
 			
@@ -356,9 +371,21 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				$reloadContextNode = true;
 				
 			break;
+
+
+            case "purge" :
+
+                
+                $pTime = intval($this->repository->getOption("PURGE_AFTER"));
+                if($pTime > 0){
+                    $purgeTime = intval($pTime)*3600*24;
+                    $this->recursivePurge($this->urlBase, $purgeTime);
+                }
+
+            break;
 		
 			//------------------------------------
-			//	RENOMMER / RENAME
+			//	RENAME
 			//------------------------------------
 			case "rename";
 			
@@ -380,7 +407,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			        
 				$messtmp="";
 				$dirname=AJXP_Utils::decodeSecureMagic($httpVars["dirname"], AJXP_SANITIZE_HTML_STRICT);
-				$dirname = substr($dirname, 0, ConfService::getConf("MAX_CHAR"));
+				$dirname = substr($dirname, 0, ConfService::getCoreConf("NODENAME_MAX_LENGTH"));
 				$this->filterUserSelectionToHidden(array($dirname));
 				$error = $this->mkDir($dir, $dirname);
 				if(isSet($error)){
@@ -391,8 +418,10 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				$logMessage = $messtmp;
 				$pendingSelection = $dirname;
 				$reloadContextNode = true;
-				AJXP_Logger::logAction("Create Dir", array("dir"=>$dir."/".$dirname));
-				
+                $newNode = new AJXP_Node($this->urlBase.$dir."/".$dirname);
+                AJXP_Controller::applyHook("node.change", array(null, $newNode, false));
+                AJXP_Logger::logAction("Create Dir", array("dir"=>$dir."/".$dirname));
+
 			break;
 		
 			//------------------------------------
@@ -402,9 +431,13 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			
 				$messtmp="";
 				$filename=AJXP_Utils::decodeSecureMagic($httpVars["filename"], AJXP_SANITIZE_HTML_STRICT);
-				$filename = substr($filename, 0, ConfService::getConf("MAX_CHAR"));
+				$filename = substr($filename, 0, ConfService::getCoreConf("NODENAME_MAX_LENGTH"));
 				$this->filterUserSelectionToHidden(array($filename));
-				$error = $this->createEmptyFile($dir, $filename);
+				$content = "";
+				if(isSet($httpVars["content"])){
+					$content = $httpVars["content"];
+				}
+				$error = $this->createEmptyFile($dir, $filename, $content);
 				if(isSet($error)){
 					throw new AJXP_Exception($error);
 				}
@@ -414,6 +447,8 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				$reloadContextNode = true;
 				$pendingSelection = $dir."/".$filename;
 				AJXP_Logger::logAction("Create File", array("file"=>$dir."/".$filename));
+				$newNode = new AJXP_Node($this->urlBase.$dir."/".$filename);
+				AJXP_Controller::applyHook("node.change", array(null, $newNode, false));
 		
 			break;
 			
@@ -472,8 +507,8 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 					}catch (Exception $e){
 						return array("ERROR" => array("CODE" => 411, "MESSAGE" => "Forbidden"));
 					}
-					$userfile_name=AJXP_Utils::sanitize(SystemTextEncoding::magicDequote($userfile_name), AJXP_SANITIZE_HTML_STRICT);
-					$userfile_name = substr($userfile_name, 0, ConfService::getConf("MAX_CHAR"));
+					$userfile_name=AJXP_Utils::sanitize(SystemTextEncoding::fromPostedFileName($userfile_name), AJXP_SANITIZE_HTML_STRICT);
+					$userfile_name = substr($userfile_name, 0, ConfService::getCoreConf("NODENAME_MAX_LENGTH"));
 					if(isSet($httpVars["auto_rename"])){
 						$userfile_name = self::autoRenameForDest($destination, $userfile_name);
 					}
@@ -505,6 +540,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 						}
 					}
 					$this->changeMode($destination."/".$userfile_name);
+                    AJXP_Controller::applyHook("node.change", array(null, new AJXP_Node($destination."/".$userfile_name), false));
 					$logMessage.="$mess[34] ".SystemTextEncoding::toUTF8($userfile_name)." $mess[35] $dir";
 					AJXP_Logger::logAction("Upload File", array("file"=>SystemTextEncoding::fromUTF8($dir)."/".$userfile_name));
 				}
@@ -520,41 +556,6 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				
 			break;
             
-            //------------------------------------
-            // SHARING FILE OR FOLDER
-            //------------------------------------
-            case "public_url":
-            	$subAction = (isSet($httpVars["sub_action"])?$httpVars["sub_action"]:"");
-            	if($subAction == "delegate_repo"){
-					header("Content-type:text/plain");				
-					$result = $this->createSharedRepository($httpVars);				
-					print($result);        		
-            	}else if($subAction == "list_shared_users"){
-            		header("Content-type:text/html");
-            		if(!ConfService::getAuthDriverImpl()->usersEditable()){
-            			break;
-            		}
-            		$loggedUser = AuthService::getLoggedUser();
-            		$allUsers = AuthService::listUsers();
-            		$crtValue = $httpVars["value"];
-            		$users = "";
-            		foreach ($allUsers as $userId => $userObject){            			
-            			if($crtValue != "" && (strstr($userId, $crtValue) === false || strstr($userId, $crtValue) != 0)) continue;
-            			if($userObject->hasParent() && $userObject->getParent() == $loggedUser->getId()){
-            				$users .= "<li>".$userId."</li>";
-            			}
-            		}
-            		if(strlen($users)) {
-            			print("<ul>".$users."</ul>");
-            		}
-            	}else{
-					$file = AJXP_Utils::decodeSecureMagic($httpVars["file"]);
-	                $url = $this->makePubliclet($file, $httpVars["password"], $httpVars["expiration"]);
-	                header("Content-type:text/plain");
-	                echo $url;
-            	}
-            break;
-						
 			//------------------------------------
 			//	XML LISTING
 			//------------------------------------
@@ -566,12 +567,12 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				$startTime = microtime();
 				
 				$dir = AJXP_Utils::securePath(SystemTextEncoding::magicDequote($dir));
-				$path = $this->urlBase.($dir!= ""?"/".$dir:"");	
+				$path = $this->urlBase.($dir!= ""?($dir[0]=="/"?"":"/").$dir:"");
 				$threshold = $this->repository->getOption("PAGINATION_THRESHOLD");
 				if(!isSet($threshold) || intval($threshold) == 0) $threshold = 500;
 				$limitPerPage = $this->repository->getOption("PAGINATION_NUMBER");
 				if(!isset($limitPerPage) || intval($limitPerPage) == 0) $limitPerPage = 200;
-				
+								
 				$countFiles = $this->countFiles($path, !$lsOptions["f"]);
 				if($countFiles > $threshold){
 					$offset = 0;
@@ -586,23 +587,12 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				}					
 												
 				$metaData = array();
-				$crtLabel = AJXP_Utils::xmlEntities(basename($dir), true);
-				if(RecycleBinManager::recycleEnabled()){
-					if(RecycleBinManager::currentLocationIsRecycle($dir)){
-						$metaData["ajxp_mime"] = "ajxp_recycle";
-						$crtLabel = AJXP_Utils::xmlEntities($mess[122]);
-					}else if($dir == ""){
-						$metaData["repo_has_recycle"] = "true";
-					}
+				if(RecycleBinManager::recycleEnabled() && $dir == ""){
+                    $metaData["repo_has_recycle"] = "true";
 				}
-				if(AJXP_Utils::isBrowsableArchive($dir)){
-					$metaData["ajxp_mime"] = "ajxp_browsable_archive";
-				}
-				AJXP_XMLWriter::renderHeaderNode(
-					AJXP_Utils::xmlEntities($dir, true), 
-					$crtLabel, 
-					false, 
-					$metaData);
+				$parentAjxpNode = new AJXP_Node($path, $metaData);
+                $parentAjxpNode->loadNodeInfo(false, true);
+				AJXP_XMLWriter::renderAjxpHeaderNode($parentAjxpNode);
 				if(isSet($totalPages) && isSet($crtPage)){
 					AJXP_XMLWriter::renderPaginationData(
 						$countFiles, 
@@ -624,122 +614,67 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 				closedir($handle);				
 				$fullList = array("d" => array(), "z" => array(), "f" => array());				
 				$nodes = scandir($path);
+				if(!empty($this->driverConf["SCANDIR_RESULT_SORTFONC"])){
+					usort($nodes, $this->driverConf["SCANDIR_RESULT_SORTFONC"]);
+				}
 				//while(strlen($nodeName = readdir($handle)) > 0){
 				foreach ($nodes as $nodeName){
 					if($nodeName == "." || $nodeName == "..") continue;
-					$isLeaf = (is_file($path."/".$nodeName) || AJXP_Utils::isBrowsableArchive($nodeName));
+					
+					$isLeaf = "";
 					if(!$this->filterNodeName($path, $nodeName, $isLeaf, $lsOptions)){
 						continue;
 					}
 					if(RecycleBinManager::recycleEnabled() && $dir == "" && "/".$nodeName == RecycleBinManager::getRecyclePath()){
 						continue;
-					}					
-					$nodeType = "d";
-					if($isLeaf){
-						if(AJXP_Utils::isBrowsableArchive($nodeName)) {
-							if($lsOptions["f"] && $lsOptions["z"]){
-								// See archives as files
-								$nodeType = "f";
-							}else{
-								$nodeType = "z";
-							}
-						}
-						else $nodeType = "f";
-					}			
+					}
+					
 					if($offset > 0 && $cursor < $offset){
 						$cursor ++;
 						continue;
 					}
 					if($limitPerPage > 0 && ($cursor - $offset) >= $limitPerPage) {				
 						break;
-					}
+					}					
 					
-					$metaData = array();
-					$currentFile = $path."/".$nodeName;	
-					$metaData["is_file"] = ($isLeaf?"1":"0");
-					$metaData["filename"] = AJXP_Utils::xmlEntities(SystemTextEncoding::toUTF8($dir."/".$nodeName));
-					$metaData["icon"] = AJXP_Utils::mimetype($nodeName, "image", !$isLeaf);
-					if($metaData["icon"] == "folder.png"){
-						$metaData["openicon"] = "folder_open.png";
+					$currentFile = $path."/".$nodeName;
+                    $meta = array();
+                    if($isLeaf != "") $meta = array("is_file" => ($isLeaf?"1":"0"));
+                    $node = new AJXP_Node($currentFile, $meta);
+                    $node->setLabel($nodeName);
+                    $node->loadNodeInfo();
+					if(!empty($metaData["nodeName"]) && $metaData["nodeName"] != $nodeName){
+                        $node->setUrl($path."/".$metaData["nodeName"]);
 					}
-					if(!is_file($currentFile) || AJXP_Utils::isBrowsableArchive($nodeName)){
-						$link = SystemTextEncoding::toUTF8(SERVER_ACCESS."?get_action=ls&options=dz&dir=".$dir."/".$nodeName);
-						$link = urlencode($link);						
-						$metaData["src"] = $link;
-					}
-					if($lsOptions["l"]){
-						$metaData["file_group"] = @filegroup($currentFile) || "unknown";
-						$metaData["file_owner"] = @fileowner($currentFile) || "unknown";
-						$fPerms = @fileperms($currentFile);
-						if($fPerms !== false){
-							$fPerms = substr(decoct( $fPerms ), ($isLeaf?2:1));
-						}else{
-							$fPerms = '0000';
-						}
-						$metaData["file_perms"] = $fPerms;
-						$metaData["mimestring"] = AJXP_Utils::mimetype($currentFile, "type", !$isLeaf);
-						$datemodif = $this->date_modif($currentFile);
-						$metaData["ajxp_modiftime"] = ($datemodif ? $datemodif : "0");
-						$metaData["bytesize"] = 0;
-						if($isLeaf){
-							$metaData["bytesize"] = filesize($currentFile);							
-							if($metaData["bytesize"] < 0){
-								$metaData["bytesize"] = sprintf("%u", $metaData["bytesize"]);
-							}
-						}
-						$metaData["filesize"] = AJXP_Utils::roundSize($metaData["bytesize"]);
-						if(AJXP_Utils::isBrowsableArchive($nodeName)){
-							$metaData["ajxp_mime"] = "ajxp_browsable_archive";
-						}
-						$realFile = null; // A reference to the real file.
-						AJXP_Controller::applyHook("ls.metadata", array($currentFile, &$metaData, $this->wrapperClassName, &$realFile));						
-					}
-									
-					$attributes = "";
-					foreach ($metaData as $key => $value){
-						$attributes .= "$key=\"$value\" ";
-					}
-					
-					$renderNodeData = array(
-						AJXP_Utils::xmlEntities($dir."/".$nodeName,true), 
-						AJXP_Utils::xmlEntities($nodeName, true), 
-						$isLeaf, 
-						$metaData
-					);
-					$fullList[$nodeType][$nodeName] = $renderNodeData;
+
+                    $nodeType = "d";
+                    if($node->isLeaf()){
+                        if(AJXP_Utils::isBrowsableArchive($nodeName)) {
+                            if($lsOptions["f"] && $lsOptions["z"]){
+                                $nodeType = "f";
+                            }else{
+                                $nodeType = "z";
+                            }
+                        }
+                        else $nodeType = "f";
+                    }
+
+					$fullList[$nodeType][$nodeName] = $node;
 					$cursor ++;
 				}				
-				/*
-				closedir($handle);
-				foreach ($fullList as $key => $list){
-					uksort($list, 'strnatcasecmp');
-					$fullList[$key] = $list;
-				}
-				*/
-				$allNodes = array_merge($fullList["d"], $fullList["z"], $fullList["f"]);				
-				array_map(array("AJXP_XMLWriter", "renderNodeArray"), $fullList["d"]);
-				array_map(array("AJXP_XMLWriter", "renderNodeArray"), $fullList["z"]);
-				array_map(array("AJXP_XMLWriter", "renderNodeArray"), $fullList["f"]);
+				array_map(array("AJXP_XMLWriter", "renderAjxpNode"), $fullList["d"]);
+				array_map(array("AJXP_XMLWriter", "renderAjxpNode"), $fullList["z"]);
+				array_map(array("AJXP_XMLWriter", "renderAjxpNode"), $fullList["f"]);
 				
 				// ADD RECYCLE BIN TO THE LIST
-				if($dir == "" && RecycleBinManager::recycleEnabled())
+				if($dir == "" && RecycleBinManager::recycleEnabled() && $this->driverConf["HIDE_RECYCLE"] !== true)
 				{
 					$recycleBinOption = RecycleBinManager::getRelativeRecycle();										
 					if(file_exists($this->urlBase.$recycleBinOption)){
 						$recycleIcon = ($this->countFiles($this->urlBase.$recycleBinOption, false, true)>0?"trashcan_full.png":"trashcan.png");
-						$recycleMetaData = array("ajxp_modiftime" 	=> $this->date_modif($this->urlBase.$recycleBinOption),
-						  "mimestring" 		=> AJXP_Utils::xmlEntities($mess[122]),
-						  "icon"			=> "$recycleIcon", 
-						  "filesize"		=> "-",
-						  "ajxp_mime"		=> "ajxp_recycle");
-						$nullFile = null;
-						AJXP_Controller::applyHook("ls.metadata", array($this->urlBase.$recycleBinOption, &$recycleMetaData, $this->wrapperClassName, &$nullFile));
-						AJXP_XMLWriter::renderNode(
-							$recycleBinOption,
-							AJXP_Utils::xmlEntities($mess[122]),
-							false, 
-							$recycleMetaData
-						);
+						$recycleNode = new AJXP_Node($this->urlBase.$recycleBinOption);
+                        $recycleNode->loadNodeInfo();
+                        AJXP_XMLWriter::renderAjxpNode($recycleNode);
 					}
 				}
 				
@@ -789,11 +724,87 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		}
 		return $lsOptions;
 	}
-	
+
+    /**
+     * @param AJXP_Node $ajxpNode
+     * @return void
+     */
+    function loadNodeInfo(&$ajxpNode){
+
+        $nodeName = basename($ajxpNode->getPath());
+        $metaData = $ajxpNode->metadata;
+        if(!isSet($metaData["is_file"])){
+            $isLeaf = is_file($ajxpNode->getUrl()) || AJXP_Utils::isBrowsableArchive($nodeName);
+            $metaData["is_file"] = ($isLeaf?"1":"0");
+        }else{
+            $isLeaf = $metaData["is_file"] == "1" ? true : false;
+        }
+        $metaData["filename"] = $ajxpNode->getPath();
+
+        if(RecycleBinManager::recycleEnabled() && $ajxpNode->getPath() == RecycleBinManager::getRelativeRecycle()){
+            $mess = ConfService::getMessages();
+            $recycleIcon = ($this->countFiles($ajxpNode->getUrl(), false, true)>0?"trashcan_full.png":"trashcan.png");
+            $metaData["icon"] = $recycleIcon;
+            $metaData["mimestring"] = $mess[122];
+            $ajxpNode->setLabel($mess[122]);
+            $metaData["ajxp_mime"] = "ajxp_recycle";
+        }else{
+            $metaData["mimestring"] = AJXP_Utils::mimetype($ajxpNode->getUrl(), "type", !$isLeaf);
+            $metaData["icon"] = AJXP_Utils::mimetype($nodeName, "image", !$isLeaf);
+            if($metaData["icon"] == "folder.png"){
+                $metaData["openicon"] = "folder_open.png";
+            }
+        }
+        //if($lsOptions["l"]){
+
+        $metaData["file_group"] = @filegroup($ajxpNode->getUrl()) || "unknown";
+        $metaData["file_owner"] = @fileowner($ajxpNode->getUrl()) || "unknown";
+        $fPerms = @fileperms($ajxpNode->getUrl());
+        if($fPerms !== false){
+            $fPerms = substr(decoct( $fPerms ), ($isLeaf?2:1));
+        }else{
+            $fPerms = '0000';
+        }
+        $metaData["file_perms"] = $fPerms;
+        $datemodif = $this->date_modif($ajxpNode->getUrl());
+        $metaData["ajxp_modiftime"] = ($datemodif ? $datemodif : "0");
+        $metaData["bytesize"] = 0;
+        if($isLeaf){
+            $metaData["bytesize"] = $this->filesystemFileSize($ajxpNode->getUrl());
+        }
+        $metaData["filesize"] = AJXP_Utils::roundSize($metaData["bytesize"]);
+        if(AJXP_Utils::isBrowsableArchive($nodeName)){
+            $metaData["ajxp_mime"] = "ajxp_browsable_archive";
+        }
+
+        //}
+
+        /*
+        if(!isSet(self::$loadedUserBookmarks)){
+            $user = AuthService::getLoggedUser();
+            if($user == null){
+                self::$loadedUserBookmarks = false;
+            }else{
+                self::$loadedUserBookmarks = $user->getBookmarks();
+            }
+        }
+        if(self::$loadedUserBookmarks !== false){
+            foreach(self::$loadedUserBookmarks as $bookmark){
+                if($bookmark["PATH"] == $ajxpNode->getPath()) {
+                    $ajxpNode->mergeMetadata(array(
+                        "ajxp_bookmarked"=>"true",
+                        "ajxp_overlay_icon" =>"bookmark"));
+                }
+            }
+        }
+        */
+        $ajxpNode->mergeMetadata($metaData);
+
+    }
+
 	/**
 	 * Test if userSelection is containing a hidden file, which should not be the case!
-	 *
-	 * @param UserSelection $userSelection
+	 * @param UserSelection $files
 	 */
 	function filterUserSelectionToHidden($files){
 		foreach ($files as $file){
@@ -807,7 +818,8 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		}
 	}
 	
-	function filterNodeName($nodePath, $nodeName, $isLeaf, $lsOptions){
+	function filterNodeName($nodePath, $nodeName, &$isLeaf, $lsOptions){
+		$isLeaf = (is_file($nodePath."/".$nodeName) || AJXP_Utils::isBrowsableArchive($nodeName));
 		if(AJXP_Utils::isHidden($nodeName) && !$this->driverConf["SHOW_HIDDEN_FILES"]){
 			return false;
 		}
@@ -834,50 +846,69 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		}
 	}
 	
-	function filterFile($fileName){
-		$pathParts = pathinfo($fileName);
-		if(array_key_exists("HIDE_FILENAMES", $this->driverConf) && is_array($this->driverConf["HIDE_FILENAMES"])){
-			foreach ($this->driverConf["HIDE_FILENAMES"] as $search){
-				if(strcasecmp($search, $pathParts["basename"]) == 0) return true;
-			}
-		}
-		if(array_key_exists("HIDE_EXTENSIONS", $this->driverConf) && is_array($this->driverConf["HIDE_EXTENSIONS"])){
-			foreach ($this->driverConf["HIDE_EXTENSIONS"] as $search){
-				if(strcasecmp($search, $pathParts["extension"]) == 0) return true;
-			}
-		}
-		return false;
-	}
+    function filterFile($fileName){
+        $pathParts = pathinfo($fileName);
+        if(array_key_exists("HIDE_FILENAMES", $this->driverConf)){
+            if(!is_array($this->driverConf["HIDE_FILENAMES"])) {
+                $this->driverConf["HIDE_FILENAMES"] = explode(",",$this->driverConf["HIDE_FILENAMES"]);
+            }
+            foreach ($this->driverConf["HIDE_FILENAMES"] as $search){
+                if(strcasecmp($search, $pathParts["basename"]) == 0) return true;
+            }
+        }
+        if(array_key_exists("HIDE_EXTENSIONS", $this->driverConf)){
+            if(!is_array($this->driverConf["HIDE_EXTENSIONS"])) {
+                $this->driverConf["HIDE_EXTENSIONS"] = explode(",",$this->driverConf["HIDE_EXTENSIONS"]);
+            }
+            foreach ($this->driverConf["HIDE_EXTENSIONS"] as $search){
+                if(strcasecmp($search, $pathParts["extension"]) == 0) return true;
+            }
+        }
+        return false;
+    }
+
+    function filterFolder($folderName){
+        if(array_key_exists("HIDE_FOLDERS", $this->driverConf)){
+            if(!is_array($this->driverConf["HIDE_FOLDERS"])) {
+                $this->driverConf["HIDE_FOLDERS"] = explode(",",$this->driverConf["HIDE_FOLDERS"]);
+            }
+            foreach ($this->driverConf["HIDE_FOLDERS"] as $search){
+                if(strcasecmp($search, $folderName) == 0) return true;
+            }
+        }
+        return false;
+    }
 	
-	function filterFolder($folderName){
-		if(array_key_exists("HIDE_FOLDERS", $this->driverConf) && is_array($this->driverConf["HIDE_FOLDERS"])){
-			foreach ($this->driverConf["HIDE_FOLDERS"] as $search){
-				if(strcasecmp($search, $folderName) == 0) return true;
-			}
-		}
-		return false;		
-	}
-	
-	function readFile($filePathOrData, $headerType="plain", $localName="", $data=false, $gzip=GZIP_DOWNLOAD, $realfileSystem=false, $byteOffset=-1, $byteLength=-1)
+	function readFile($filePathOrData, $headerType="plain", $localName="", $data=false, $gzip=null, $realfileSystem=false, $byteOffset=-1, $byteLength=-1)
 	{
+		if($gzip === null){
+			$gzip = ConfService::getCoreConf("GZIP_COMPRESSION");
+		}
 		session_write_close();
 
 		restore_error_handler();
 		restore_exception_handler();
-		
+
         set_exception_handler('download_exception_handler');
         set_error_handler('download_exception_handler');
         // required for IE, otherwise Content-disposition is ignored
-        if(ini_get('zlib.output_compression')) { ini_set('zlib.output_compression', 'Off'); }
+        if(ini_get('zlib.output_compression')) { 
+         AJXP_Utils::safeIniSet('zlib.output_compression', 'Off'); 
+        }
 
 		$isFile = !$data && !$gzip; 		
 		if($byteLength == -1){
-			$size = ($data ? strlen($filePathOrData) : filesize($filePathOrData));
+            if($data){
+                $size = strlen($filePathOrData);
+            }else if ($realfileSystem){
+                $size = sprintf("%u", filesize($filePathOrData));
+            }else{
+                $size = $this->filesystemFileSize($filePathOrData);
+            }
 		}else{
 			$size = $byteLength;
 		}
-		
-		if($gzip && ($size > GZIP_LIMIT || !function_exists("gzencode") || @strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === FALSE)){
+		if($gzip && ($size > ConfService::getCoreConf("GZIP_LIMIT") || !function_exists("gzencode") || @strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') === FALSE)){
 			$gzip = false; // disable gzip
 		}
 		
@@ -897,22 +928,39 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			if(preg_match('/ MSIE /',$_SERVER['HTTP_USER_AGENT']) || preg_match('/ WebKit /',$_SERVER['HTTP_USER_AGENT'])){
 				$localName = str_replace("+", " ", urlencode(SystemTextEncoding::toUTF8($localName)));
 			}
-
-			if ($isFile) header("Accept-Ranges: bytes");
+			if ($isFile) {
+				header("Accept-Ranges: 0-$size");
+				AJXP_Logger::debug("Sending accept range 0-$size");
+			}
+			
 			// Check if we have a range header (we are resuming a transfer)
 			if ( isset($_SERVER['HTTP_RANGE']) && $isFile && $size != 0 )
 			{
+				if($headerType == "stream_content"){
+					if(extension_loaded('fileinfo')  && $this->wrapperClassName == "fsAccessWrapper"){
+            			$fInfo = new fInfo( FILEINFO_MIME );
+            			$realfile = call_user_func(array($this->wrapperClassName, "getRealFSReference"), $filePathOrData);
+            			$mimeType = $fInfo->file( $realfile);
+            			$splitChar = explode(";", $mimeType);
+            			$mimeType = trim($splitChar[0]);
+            			AJXP_Logger::debug("Detected mime $mimeType for $realfile");
+					}else{
+						$mimeType = AJXP_Utils::getStreamingMimeType(basename($filePathOrData));
+					}					
+					header('Content-type: '.$mimeType);
+				}
 				// multiple ranges, which can become pretty complex, so ignore it for now
 				$ranges = explode('=', $_SERVER['HTTP_RANGE']);
 				$offsets = explode('-', $ranges[1]);
 				$offset = floatval($offsets[0]);
-
+				
 				$length = floatval($offsets[1]) - $offset;
 				if (!$length) $length = $size - $offset;
 				if ($length + $offset > $size || $length < 0) $length = $size - $offset;
+				AJXP_Logger::debug('Content-Range: bytes ' . $offset . '-' . $length . '/' . $size);
 				header('HTTP/1.1 206 Partial Content');
-
-				header('Content-Range: bytes ' . $offset . '-' . ($offset + $length - 1) . '/' . $size);
+				header('Content-Range: bytes ' . $offset . '-' . ($offset + $length) . '/' . $size);
+				
 				header("Content-Length: ". $length);
 				$file = fopen($filePathOrData, 'rb');
 				fseek($file, 0);
@@ -928,12 +976,15 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 
                 while(ob_get_level()) ob_end_flush();
 				$readSize = 0.0;
+				$bufferSize = 1024 * 8;
 				while (!feof($file) && $readSize < $length && connection_status() == 0)
 				{
-					echo fread($file, 2048);
-					$readSize += 2048.0;
+					AJXP_Logger::debug("dl reading $readSize to $length", $_SERVER["HTTP_RANGE"]);					
+					echo fread($file, $bufferSize);
+					$readSize += $bufferSize;
 					flush();
 				}
+				
 				fclose($file);
 				return;
 			} else
@@ -984,6 +1035,12 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		if($data){
 			print($filePathOrData);
 		}else{
+            if($this->pluginConf["USE_XSENDFILE"] && $this->wrapperClassName == "fsAccessWrapper"){
+                if(!$realfileSystem) $filePathOrData = fsAccessWrapper::getRealFSReference($filePathOrData);
+                $filePathOrData = str_replace("\\", "/", $filePathOrData);
+                header("X-Sendfile: ".$filePathOrData);
+                return;
+            }
 			$stream = fopen("php://output", "a");
 			if($realfileSystem){
 				AJXP_Logger::debug("realFS!", array("file"=>$filePathOrData));
@@ -1047,7 +1104,22 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			call_user_func(array($this->wrapperClassName, "changeMode"), $filePath, $chmodValue);
 		}		
 	}
-	
+
+    function filesystemFileSize($filePath){
+        $bytesize = filesize($filePath);
+        if(method_exists($this->wrapperClassName, "getLastRealSize")){
+            $last = call_user_func(array($this->wrapperClassName, "getLastRealSize"));
+            if($last !== false){
+                $bytesize = $last;
+            }
+        }
+        if($bytesize < 0){
+            $bytesize = sprintf("%u", $bytesize);
+        }
+
+        return $bytesize;
+    }
+
 	/**
 	 * Extract an archive directly inside the dest directory.
 	 *
@@ -1057,7 +1129,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 	 * @param array $success
 	 */
 	function extractArchive($destDir, $selection, &$error, &$success){
-		require_once("server/classes/pclzip.lib.php");
+		require_once(AJXP_BIN_FOLDER."/pclzip.lib.php");
 		$zipPath = $selection->getZipPath(true);
 		$zipLocalPath = $selection->getZipLocalPath(true);
 		if(strlen($zipLocalPath)>1 && $zipLocalPath[0] == "/") $zipLocalPath = substr($zipLocalPath, 1)."/";
@@ -1125,7 +1197,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		$nom_fic=basename($filePath);
 		$mess = ConfService::getMessages();
 		$filename_new=AJXP_Utils::sanitize(SystemTextEncoding::magicDequote($filename_new), AJXP_SANITIZE_HTML_STRICT);
-		$filename_new = substr($filename_new, 0, ConfService::getConf("MAX_CHAR"));
+		$filename_new = substr($filename_new, 0, ConfService::getCoreConf("NODENAME_MAX_LENGTH"));
 		$old=$this->urlBase."/$filePath";
 		if(!$this->isWriteable($old))
 		{
@@ -1144,8 +1216,8 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		{
 			throw new AJXP_Exception($mess[100]." $nom_fic");
 		}
-		AJXP_Controller::applyHook("move.metadata", array($old, $new, false));
 		rename($old,$new);
+        AJXP_Controller::applyHook("node.change", array(new AJXP_Node($old), new AJXP_Node($new), false));
 	}
 	
 	function autoRenameForDest($destination, $fileName){
@@ -1198,7 +1270,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		return null;		
 	}
 	
-	function createEmptyFile($crtDir, $newFileName)
+	function createEmptyFile($crtDir, $newFileName, $content = "")
 	{
 		$mess = ConfService::getMessages();
 		if($newFileName=="")
@@ -1213,16 +1285,18 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 		{
 			return "$mess[38] $crtDir $mess[99]";
 		}
-		
 		$fp=fopen($this->urlBase."$crtDir/$newFileName","w");
 		if($fp)
 		{
+			if($content != ""){
+				fputs($fp, $content);
+			}
 			if(preg_match("/\.html$/",$newFileName)||preg_match("/\.htm$/",$newFileName))
 			{
 				fputs($fp,"<html>\n<head>\n<title>New Document - Created By AjaXplorer</title>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n</head>\n<body bgcolor=\"#FFFFFF\" text=\"#000000\">\n\n</body>\n</html>\n");
 			}
+			$this->changeMode($this->urlBase."$crtDir/$newFileName");
 			fclose($fp);
-			$this->changeMode($this->urlBase."/$crtDir/$newFileName");
 			return null;
 		}
 		else
@@ -1256,7 +1330,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			{
 				$logMessages[]="$mess[34] ".SystemTextEncoding::toUTF8($selectedFile)." $mess[44].";
 			}
-			AJXP_Controller::applyHook("move.metadata", array($fileToDelete));
+			AJXP_Controller::applyHook("node.change", array(new AJXP_Node($fileToDelete)));
 		}
 		return null;
 	}
@@ -1314,14 +1388,16 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 			{
 				$error[] = $mess[114];
 				return ;
-			}			
+			}else{
+                AJXP_Controller::applyHook("node.change", array(new AJXP_Node($realSrcFile), new AJXP_Node($destFile), !$move));
+            }
 		}
 		else 
 		{			
 			if($move){	
 				if(file_exists($destFile)) unlink($destFile);				
 				$res = rename($realSrcFile, $destFile);
-				AJXP_Controller::applyHook("move.metadata", array($realSrcFile, $destFile, false));
+				AJXP_Controller::applyHook("node.change", array(new AJXP_Node($realSrcFile), new AJXP_Node($destFile), false));
 			}else{
 				try{
 					$src = fopen($realSrcFile, "r");
@@ -1333,7 +1409,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 						fclose($dest);
 					}
 					fclose($src);
-					AJXP_Controller::applyHook("move.metadata", array($realSrcFile, $destFile, true));
+					AJXP_Controller::applyHook("node.change", array(new AJXP_Node($realSrcFile), new AJXP_Node($destFile), true));
 				}catch (Exception $e){
 					$error[] = $e->getMessage();
 					return ;					
@@ -1514,7 +1590,7 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
     function makeZip ($src, $dest, $basedir)
     {
     	@set_time_limit(0);
-    	require_once(SERVER_RESOURCES_FOLDER."/pclzip.lib.php");
+    	require_once(AJXP_BIN_FOLDER."/pclzip.lib.php");
     	$filePaths = array();
     	foreach ($src as $item){
     		$realFile = call_user_func(array($this->wrapperClassName, "getRealFSReference"), $this->urlBase."/".$item);    		
@@ -1532,19 +1608,52 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
     	}
     	return $vList;
     }
-    
+
+    function recursivePurge($dirName, $purgeTime){
+
+        $handle=opendir($dirName);
+        $count = 0;
+        while (strlen($file = readdir($handle)) > 0)
+        {
+            if($file == "" || $file == ".."  || AJXP_Utils::isHidden($file) ){
+                continue;
+            }
+            if(is_file($dirName."/".$file)){
+                $time = filemtime($dirName."/".$file);
+                $docAge = time() - $time;
+                if( $docAge > $purgeTime){
+                    //unlink($dirName."/".$file);
+                    //AJXP_Controller::applyHook("node.change", array(new AJXP_Node($dirName."/".$file)));
+                    AJXP_Logger::logAction("Purge", array("file" => $dirName."/".$file));
+                    print(" - Purging document : ".$dirName."/".$file."\n");
+                }
+            }else{
+                $this->recursivePurge($dirName."/".$file, $purgeTime);
+            }
+        }
+        closedir($handle);
+
+
+    }
     
     
     /** The publiclet URL making */
-    function makePubliclet($filePath, $password, $expire)
+    function makePublicletOptions($filePath, $password, $expire, $repository)
     {
-    	$data = array("DRIVER"=>$this->repository->getAccessType(), "OPTIONS"=>NULL, "FILE_PATH"=>$filePath, "ACTION"=>"download", "EXPIRE_TIME"=>$expire ? (time() + $expire * 86400) : 0, "PASSWORD"=>$password);
-    	return $this->writePubliclet($data);
+    	$data = array(
+            "DRIVER"=>$repository->getAccessType(),
+            "OPTIONS"=>NULL,
+            "FILE_PATH"=>$filePath,
+            "ACTION"=>"download",
+            "EXPIRE_TIME"=>$expire ? (time() + $expire * 86400) : 0,
+            "PASSWORD"=>$password
+        );
+        return $data;
     }
 
-    function makeSharedRepositoryOptions($httpVars){
+    function makeSharedRepositoryOptions($httpVars, $repository){
 		$newOptions = array(
-			"PATH" => $this->repository->getOption("PATH").AJXP_Utils::decodeSecureMagic($httpVars["file"]), 
+			"PATH" => $repository->getOption("PATH").AJXP_Utils::decodeSecureMagic($httpVars["file"]),
 			"CREATE" => false, 
 			"RECYCLE_BIN" => "", 
 			"DEFAULT_RIGHTS" => "");

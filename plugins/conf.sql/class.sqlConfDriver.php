@@ -1,42 +1,30 @@
 <?php
-/**
- * @package info.ajaxplorer
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : Serialized Files implementation of AbstractConfDriver
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
+
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH."/server/classes/class.AbstractConfDriver.php");
-
+/**
+ * @package info.ajaxplorer.plugins
+ * Configuration stored in an SQL Database
+ */
 class sqlConfDriver extends AbstractConfDriver {
 		
 	
@@ -60,17 +48,43 @@ class sqlConfDriver extends AbstractConfDriver {
 	 * 		'database' => 'dbname'
 	 * 		)
 	 * 
-	 * @see server/classes/AbstractConfDriver#init($options)
+	 * @see AbstractConfDriver#init($options)
 	 */
 	function init($options){
 		parent::init($options);
-		require_once(INSTALL_PATH."/server/classes/dibi.compact.php");		
+		require_once(AJXP_BIN_FOLDER."/dibi.compact.php");		
 		$this->sqlDriver = $options["SQL_DRIVER"];
 		try {
 			dibi::connect($this->sqlDriver);		
 		} catch (DibiException $e) {
 			echo get_class($e), ': ', $e->getMessage(), "\n";
 			exit(1);
+		}
+	}
+	
+	function _loadPluginConfig($pluginId, &$options){
+		$res_opts = dibi::query('SELECT * FROM [ajxp_plugin_configs] WHERE [id] = %s', $pluginId);
+		if (count($res_opts) > 0) {
+			$config_row = $res_opts->fetchPairs();
+			$confOpt = unserialize($config_row[$pluginId]);
+			if(is_array($confOpt)){
+				foreach($confOpt as $key => $value) $options[$key] = $value;
+			}
+		}
+	}
+	
+	/**
+	 * 
+	 * @param String $pluginType
+	 * @param String $pluginId
+	 * @param String $options
+	 */
+	function savePluginConfig($pluginId, $options){
+		$res_opts = dibi::query('SELECT * FROM [ajxp_plugin_configs] WHERE [id] = %s', $pluginId);
+		if(count($res_opts)){
+			dibi::query('UPDATE [ajxp_plugin_configs] SET [configs] = %s WHERE [id] = %s', serialize($options), $pluginId);
+		}else{
+			dibi::query('INSERT INTO [ajxp_plugin_configs]', array('id' => $pluginId, 'configs' => serialize($options)));
 		}
 	}
 	
@@ -110,7 +124,9 @@ class sqlConfDriver extends AbstractConfDriver {
 		$repo->enabled = $result['enabled'];
 		$repo->recycle = "";
 		$repo->setSlug($result['slug']);
-		
+        $repo->isTemplate = intval($result['isTemplate']) == 1 ? true : false;
+        $repo->inferOptionsFromParent = intval($result['inferOptionsFromParent']) == 1 ? true : false;
+
 		foreach ($options_result as $k => $v) {
 			if($k == "META_SOURCES"){
 				$v = unserialize($v);
@@ -143,7 +159,9 @@ class sqlConfDriver extends AbstractConfDriver {
 				'writeable' => $repository->isWriteable(),
 				'enabled' => $repository->isEnabled(),
 				'options' => $repository->options,
-				'slug'		=> $repository->getSlug()
+				'slug'		=> $repository->getSlug(),
+                'isTemplate'=> $repository->isTemplate,
+                'inferOptionsFromParent'=> ($repository->inferOptionsFromParent?1:0)
 		);
 		
 		return $repository_row;
@@ -156,7 +174,7 @@ class sqlConfDriver extends AbstractConfDriver {
 	 * The list is an associative array of Array( 'uuid' => [Repository Object] );
 	 * 
 	 * @todo Create a repository object that lazy loads options, so that these list queries don't incur the multiple queries of options.
-	 * @see server/classes/AbstractConfDriver#listRepositories()
+	 * @see AbstractConfDriver#listRepositories()
 	 */
 	function listRepositories(){
 
@@ -317,10 +335,10 @@ class sqlConfDriver extends AbstractConfDriver {
 	/**
 	 * Get the full path to the Ajxp user class.
 	 * 
-	 * @see server/classes/AbstractConfDriver#getUserClassFileName()
+	 * @see AbstractConfDriver#getUserClassFileName()
 	 */
 	function getUserClassFileName(){
-		return INSTALL_PATH."/plugins/conf.sql/class.AJXP_User.php";
+		return AJXP_INSTALL_PATH."/plugins/conf.sql/class.AJXP_User.php";
 	}	
 	
 	

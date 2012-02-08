@@ -1,16 +1,23 @@
 <?php
-//---------------------------------------------------------------------------------------------------
-//
-//	AjaXplorer
-//
-//	Copyright 2007-2010 Charles du Jeu - LGPL
-//  www.Ajaxplorer.info
-//
-//  Reference dictionnary for translations
-// spanish translation: Ion Rey Bakaikoa <ionrei@gmail.com>, 2010
-// spanish corrections: Cristóbal Sabroe Yde <cristyde@gmail.com>, 2010
-//---------------------------------------------------------------------------------------------------
-
+/*
+* Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
+* This file is part of AjaXplorer.
+*
+* AjaXplorer is free software: you can redistribute it and/or modify
+* it under the terms of the GNU Affero General Public License as published by
+* the Free Software Foundation, either version 3 of the License, or
+* (at your option) any later version.
+*
+* AjaXplorer is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU Affero General Public License for more details.
+*
+* You should have received a copy of the GNU Affero General Public License
+* along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+*
+* The latest code can be found at <http://www.ajaxplorer.info/>.
+*/
 $mess=array(
 "1" => "Datos de configuración",
 "2" => "Usuarios",
@@ -101,6 +108,32 @@ $mess=array(
 "87" => "Se actualizaron exitósamente las acciones para este rol",
 "88" => "This repository is defined in the config file, you cannot edit its meta sources via the GUI.",
 "89" => "Datos específicos del usuario",
+"90" => "Repository",
+"91" => "Template",
+"92" => "Create a new template",
+"93" => "Edit",
+"94" => "Batch Edit",
+"95" => "Choose a label and a driver to access the data (check all sections for mandatory fields, you can hover the options labels with your mouse to get more info).",
+"96" => "Once a label and driver selected, enable the fields you want to be prefilled in the template using the checkboxes. The other fields will be left to the user. You can enable some fields and leave them empty, if you still want to hide them from the user.",
+"repository_access_key" => "N",
+"97" => "Plugin options successfully updated",
+"98" => "Core Configs",
+"99" => "Plugins",
+"100" => "Common '%s' plugins options",
+"101" => "Name",
+"102" => "Identifier",
+"103" => "Description",
+"104" => "Active",
+"105" => "Automatic checks",
+"106" => "Unique Identifier",
+"107" => "Plugin Configurations",
+"108" => "Documentation",
+"109" => "Global Configurations",
+"110" => "Repositories & Users",
+"111" => "Logs & Other Data",
+"112" => "<b>Apply this role by default</b> to all new users.",
+"113" => "Role status was successfully modified",
+"114" => "Default",
 /* END SENTENCE */
 );
 ?>

@@ -1,40 +1,27 @@
-/**
- * @package info.ajaxplorer.js
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  * Description : Class for simple XHR multiple upload, HTML5 only
  */
 Class.create("XHRUploader", {
 	
-	
+	_globalConfigs:null,
+
 	initialize : function( formObject, mask ){
 
 		formObject = $(formObject);
@@ -47,24 +34,25 @@ Class.create("XHRUploader", {
 		this.count = 0;
 		// Current index
 		this.id = 0;
-		// Is there a maximum?
-		if(window.htmlMultiUploaderOptions && window.htmlMultiUploaderOptions['284']){
-			this.max = parseInt(window.htmlMultiUploaderOptions['284']);
-		}
-		if(window.htmlMultiUploaderOptions && window.htmlMultiUploaderOptions['282']){
-			this.maxUploadSize = parseInt(window.htmlMultiUploaderOptions['282']);
-		}
-		this.namesMaxLength = ajxpBootstrap.parameters.get("filenamesMaxLength");
+
+        var confs = ajaxplorer.getPluginConfigs("uploader");
+        if(confs) this._globalConfigs = confs;
+        else this._globalConfigs = $H();
+
+        this.max = parseInt(this._globalConfigs.get("UPLOAD_MAX_NUMBER")) || 0;
+        this.maxUploadSize = this._globalConfigs.get("UPLOAD_MAX_SIZE") || 0;
+		this.namesMaxLength = ajaxplorer.getPluginConfigs("ajaxplorer").get("NODENAME_MAX_LENGTH");
 		if(mask){
 			this.mask = $A(mask);
 		}
 		this.crtContext = ajaxplorer.getUserSelection();
-		
+
 		this.clearList();
 		
 		// INITIALIZE GUI, IF NOT ALREADY!
-		var sendButton = formObject.select('div[id="uploadSendButton"]')[0];
-		if(sendButton.observerSet){
+		this.sendButton = formObject.select('div[id="uploadSendButton"]')[0];
+        this.sendButton.addClassName("disabled");
+		if(this.sendButton.observerSet){
 			this.totalProgressBar = this.mainForm.PROGRESSBAR;
 			this.totalStrings = $('totalStrings');
 			this.uploadedString = $('uploadedString');			
@@ -86,10 +74,12 @@ Class.create("XHRUploader", {
 		
 		var optionsButton = formObject.select('div[id="uploadOptionsButton"]')[0];
 		var closeButton = formObject.select('div[id="uploadCloseButton"]')[0];
-		sendButton.observerSet = true;
-		sendButton.observe("click", function(){
-			ajaxplorer.actionBar.multi_selector.submit();
-		});
+		this.sendButton.observerSet = true;
+		this.sendButton.observe("click", function(){
+            if(!this.hasClassName("disabled")){
+			    ajaxplorer.actionBar.multi_selector.submit();
+            }
+		}.bind(this.sendButton) );
 		optionsButton.observe("click", function(){
 			var optionPane = this.mainForm.down('#uploader_options_pane');
 			var closeSpan = optionsButton.down('span');
@@ -237,17 +227,16 @@ Class.create("XHRUploader", {
 			return value;
 		};
 		optionPane.loadData = function(){
-			if(window.htmlMultiUploaderOptions){
-				var message = '<b>' + MessageHash[281] + '</b> ';
-				for(var key in window.htmlMultiUploaderOptions){
-					message += '&nbsp;&nbsp;'+ MessageHash[key] + ':' + roundSize(window.htmlMultiUploaderOptions[key], '');
-				}
-				optionPane.optionsStrings.update(message);
-			}	
-			var autoSendValue = false;			
+            var message = '<b>' + MessageHash[281] + '</b> ';
+            message += '&nbsp;&nbsp;'+ MessageHash[282] + ':' + roundSize(this.maxUploadSize, '');
+            message += '&nbsp;&nbsp;'+ MessageHash[284] + ':' + this.max;
+            optionPane.optionsStrings.update(message);
+			var autoSendValue = false;
 			if(ajaxplorer.user && ajaxplorer.user.getPreference('upload_auto_send')){
 				autoSendValue = ajaxplorer.user.getPreference('upload_auto_send');
 				autoSendValue = (autoSendValue =="true" ? true:false);
+            }else if(this._globalConfigs.get('DEFAULT_AUTO_START')){
+                autoSendValue = this._globalConfigs.get('DEFAULT_AUTO_START');
 			}else{
 				var value = getAjxpCookie('upload_auto_send');
 				autoSendValue = ((value && value == "true")?true:false);				
@@ -258,6 +247,8 @@ Class.create("XHRUploader", {
 			if(ajaxplorer.user && ajaxplorer.user.getPreference('upload_auto_close')){
 				autoCloseValue = ajaxplorer.user.getPreference('upload_auto_close');
 				autoCloseValue = (autoCloseValue =="true" ? true:false);
+            }else if(this._globalConfigs.get('DEFAULT_AUTO_CLOSE')){
+                autoCloseValue = this._globalConfigs.get('DEFAULT_AUTO_CLOSE');
 			}else{
 				var value = getAjxpCookie('upload_auto_close');
 				autoCloseValue = ((value && value == "true")?true:false);				
@@ -267,12 +258,14 @@ Class.create("XHRUploader", {
 			var existingValue = 'overwrite';
 			if(ajaxplorer.user && ajaxplorer.user.getPreference('upload_existing')){
 				existingValue = ajaxplorer.user.getPreference('upload_existing');
+            }else if(this._globalConfigs.get('DEFAULT_EXISTING')){
+                existingValue = this._globalConfigs.get('DEFAULT_EXISTING');
 			}else if(getAjxpCookie('upload_existing')){
 				var value = getAjxpCookie('upload_existing');				
 			}
 			optionPane.down('#uploader_existing_' + existingValue).checked = true;
 			
-		}
+		}.bind(this);
 		return optionPane;
 	},
 	
@@ -304,7 +297,8 @@ Class.create("XHRUploader", {
 			$A(this.listTarget.childNodes).each(function(node){
 				this.removeChild(node);
 			}.bind(this.listTarget) );
-		}		
+		}
+        if(this.sendButton) this.sendButton.addClassName("disabled");
 	},
 
 	/**
@@ -379,9 +373,9 @@ Class.create("XHRUploader", {
 		var id = 'pgBar_' + (this.listTarget.childNodes.length + 1);
 		this.createProgressBar(item, id);
 		item.file = file;
-		item.status = 'new';
-		item.statusText.update('[new]');
+		item.updateStatus('new');
 		this.updateTotalData();
+        this.sendButton.removeClassName("disabled");
 	},
 	
 	createProgressBar : function(item, id){
@@ -392,11 +386,11 @@ Class.create("XHRUploader", {
 			marginTop: '7px',
 			height:'4px',
 			padding:0,
-			width:'150px'
+			width:'154px'
 		});
 		var percentText = new Element('span', {style:"float:right;display:block;width:30px;text-align:center;"});
-		var statusText = new Element('span', {style:"float:right;display:block;width:90px;overflow:hidden;text-align:right;"});
-		var container = new Element('div', {style:'border:medium none;margin-top:-5px;padding:0;width:280px;color: #777;'});
+		var statusText = new Element('span', {style:"float:right;display:block;width:66px;overflow:hidden;text-align:right;"});
+		var container = new Element('div', {style:'border:none;padding:0;padding-right:5px;color: #777;'});
 		container.insert(statusText);		
 		container.insert(percentText);		
 		container.insert(div);
@@ -425,6 +419,15 @@ Class.create("XHRUploader", {
 		}.bind(item);
 		item.updateStatus = function(status){
 			this.status = status;
+            var messageIds = {
+                "new" : 433,
+                "loading":434,
+                "loaded":435,
+                "error":436
+            };
+            try{
+                status = window.MessageHash[messageIds[status]];
+            }catch(e){};
 			this.statusText.innerHTML = "["+status+"]";
 		}.bind(item);
 	},
@@ -449,7 +452,9 @@ Class.create("XHRUploader", {
 					uploaded += item.file.size;
 				}			
 			});
-		}
+		}else{
+            if(this.sendButton) this.sendButton.addClassName("disabled");
+        }
 		if(size){
 			var percentage = Math.round(100*uploaded/size);
 		}
@@ -525,7 +530,24 @@ Class.create("XHRUploader", {
 	},
 	
 	sendFileMultipart : function(item){
-		var xhr = this.initializeXHR(item);
+		
+    	var auto_rename = false;
+		if(this.crtContext.fileNameExists(item.file.name))
+		{
+			var behaviour = this.optionPane.getExistingBehaviour();
+			if(behaviour == 'rename'){
+				auto_rename = true;
+			}else if(behaviour == 'alert'){
+				if(!confirm(MessageHash[124])){
+					item.remove();
+					return;
+				}
+			}else{
+				// 'overwrite' : do nothing!
+			}
+		}		
+		
+		var xhr = this.initializeXHR(item, (auto_rename?"auto_rename=true":""));
 		var file = item.file;
         item.updateProgress(null, 0);
 		item.updateStatus('loading');		

@@ -1,41 +1,35 @@
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
+ * This file is part of AjaXplorer.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ */
+
 /**
  * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
- * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : A fully functionnal manager for the whole "Admin" driver
+ * @class ConfigEditor
+ * Configurations editor
  */
 ConfigEditor = Class.create({
 
+	formManager:null,
+	
 	initialize: function(oForm){
 		if(oForm) this.form = oForm;
+		this.formManager = new FormManager();
 	},
 	
 	setForm : function(oForm){
@@ -310,6 +304,25 @@ ConfigEditor = Class.create({
 			ajaxplorer.displayMessage('SUCCESS', MessageHash['ajxp_conf.87']);
 		}
 	},
+
+    bindDefaultRoleCheckbox: function(xmlData){
+        var value = XPathGetSingleNodeText(xmlData, 'admin_data/role/@is_default');
+        if(value == "true"){
+            $("default_role_cb").checked = true;
+        }
+        $("default_role_cb").observe("change", function(){
+            var conn = new Connexion();
+            conn.addParameter("get_action", "edit");
+            conn.addParameter("sub_action", "update_role_default");
+            conn.addParameter("role_id", this.roleId);
+            conn.addParameter("default_value", $('default_role_cb').checked? "true":"false");
+            conn.onComplete = function(transport){
+                ajaxplorer.displayMessage('SUCCESS', MessageHash['ajxp_conf.113']);
+                ajaxplorer.fireContextRefresh();
+            };
+            conn.sendAsync();
+        }.bind(this));
+    },
 	
 	loadCreateUserForm : function(){
 		var params = new Hash();
@@ -340,7 +353,7 @@ ConfigEditor = Class.create({
 		
 		var customParams = $A([]);
 		for(var i=0;i<customData.length;i++){
-			customParams.push(this.driverParamNodeToHash(customData[i]));
+			customParams.push(this.formManager.parameterNodeToHash(customData[i]));
 		}
 		var userId = (this.userId) ? this.userId : 'new';
 		var newTd = new Element('div', {className:'driver_form', id:'custom_params_'+userId});
@@ -350,7 +363,7 @@ ConfigEditor = Class.create({
 			var tag = customData[i];
 			customValues.set(tag.getAttribute('name'), tag.getAttribute('value'));
 		}
-		this.createParametersInputs(newTd, customParams, false, customValues);
+		this.formManager.createParametersInputs(newTd, customParams, false, customValues, false, true);
 		if(!nosubmit){
 			var submitButton = new Element('input', {type:'image', value:'SAVE', className:'dialogButton', onClick:'return false;', src:resolveImageSource("dialog_ok_apply.png", "/images/actions/22")});
 			submitButton.observe("click", function(){
@@ -363,12 +376,15 @@ ConfigEditor = Class.create({
 		newTd.setStyle({height:newHeight});
 		if(!nosubmit)
 			submitButton.setStyle({marginTop:(parseInt(newHeight/2)-10)});
+        customPane.insert('<div style="clear:both"></div>');
+
 	},
 	
 	generateWalletsPane : function(xmlData){
 		var wallets = this.form.select("#wallets_pane")[0];
 		var repositories = $A(XPathSelectNodes(xmlData, "//repo"));
         repositories.sortBy(function(element) {return XPathGetSingleNodeText(element, "label");});
+        var count = 0;
 		for(var i=0;i<repositories.length;i++){
 			var repoNode = repositories[i];
 			var repoLabel = XPathGetSingleNodeText(repoNode, "label");
@@ -378,18 +394,23 @@ ConfigEditor = Class.create({
 			var walletParams = XPathSelectNodes(xmlData, "admin_data/drivers/ajxpdriver[@name='"+accessType+"']/user_param");				
 			var walletValues = XPathSelectNodes(xmlData, "admin_data/user_wallet/wallet_data[@repo_id='"+repoId+"']");			
 			if(!walletParams.length) continue;			
-			
+			count++;
+
 			var walletPane = new Element('div', {className:"wallet_pane", id:"wallet_pane_"+repoId});
 			this.addRepositoryUserParams(walletPane, repoId, walletParams, walletValues);
 			wallets.insert(new Element('div', {style:'margin-top: 10px;'}).update(MessageHash['ajxp_conf.79']+' "<b>'+ repoLabel + '</b>"'));
+            walletPane.insert('<div style="clear:both"></div>');
 			wallets.insert(walletPane);
-		}			
+		}
+        if(count > 1){
+            wallets.setStyle({height: '150px', overflowY:'auto', overflowX:'hidden'});
+        }
 	},
 	
 	addRepositoryUserParams : function(walletPane, repoId, walletParams, walletValues){
 		var repoParams = $A([]);
 		for(var i=0;i<walletParams.length;i++){
-			repoParams.push(this.driverParamNodeToHash(walletParams[i]));
+			repoParams.push(this.formManager.parameterNodeToHash(walletParams[i]));
 		}
 		
 		var userId = this.userId;		
@@ -400,7 +421,7 @@ ConfigEditor = Class.create({
 			var tag = walletValues[i];
 			repoValues.set(tag.getAttribute('option_name'), tag.getAttribute('option_value'));
 		}
-		this.createParametersInputs(newTd, repoParams, false, repoValues);
+		this.formManager.createParametersInputs(newTd, repoParams, false, repoValues, null, true);
 		var submitButton = new Element('input', {type:'image', value:'SAVE', className:'dialogButton', onClick:'return false;', src:resolveImageSource("dialog_ok_apply.png", "/images/actions/22")});
 		submitButton.observe("click", function(){
 			this.submitUserParamsForm(userId, repoId);
@@ -415,7 +436,7 @@ ConfigEditor = Class.create({
 	submitUserCustomForm : function(userId){
 		var parameters = new Hash();
 		parameters.set('user_id', userId);
-		if(this.submitParametersInputs($('custom_params_'+userId), parameters, "DRIVER_OPTION_")){
+		if(this.formManager.serializeParametersInputs($('custom_params_'+userId), parameters, "DRIVER_OPTION_")){
 			this.displayMessage("ERROR", MessageHash['ajxp_conf.36']);
 			return false;
 		}
@@ -426,7 +447,7 @@ ConfigEditor = Class.create({
 		var parameters = new Hash();
 		parameters.set('user_id', userId);
 		parameters.set('repository_id', repositoryId);
-		if(this.submitParametersInputs($('repo_user_params_'+userId+'_'+repositoryId), parameters, "DRIVER_OPTION_")){
+		if(this.formManager.serializeParametersInputs($('repo_user_params_'+userId+'_'+repositoryId), parameters, "DRIVER_OPTION_")){
 			this.displayMessage("ERROR", MessageHash['ajxp_conf.36']);
 			return false;
 		}
@@ -458,12 +479,12 @@ ConfigEditor = Class.create({
 		{
 			$('chck_'+repositoryId+'_write').disabled = true;
 			var wState = $('chck_'+repositoryId+'_write').checked;
-			rightString = (newState?(wState?'rw':'r'):(wState?'w':'n'));
+			rightString = (newState?(wState?'rw':'r'):(wState?'w':''));
 		}
 		else 
 		{
 			$('chck_'+repositoryId+'_read').disabled = true;
-			rightString = (newState?'rw':($('chck_'+repositoryId+'_read').checked?'r':'n'));
+			rightString = (newState?'rw':($('chck_'+repositoryId+'_read').checked?'r':''));
 		}
 				
 		var parameters = new Hash();
@@ -495,7 +516,7 @@ ConfigEditor = Class.create({
 		sync.addParameter('get_action', 'get_seed');
 		sync.onComplete = function(transport){
 			seed = transport.responseText;			
-		}		
+		};
 		sync.sendSync();
 		var encoded;
 		if(seed != '-1'){
@@ -617,6 +638,7 @@ ConfigEditor = Class.create({
 		connexion.onComplete = function(transport){
 			this.generateRightsTable(transport.responseXML);
 			this.generateActionRightsPane(transport.responseXML);
+            this.bindDefaultRoleCheckbox(transport.responseXML);
 			modal.refreshDialogPosition();
 			modal.refreshDialogAppearance();
 			ajaxplorer.blurAll();
@@ -628,7 +650,15 @@ ConfigEditor = Class.create({
 	/*************************************/
 	/*       REPOSITORIES FUNCTIONS      */
 	/*************************************/
-	initCreateRepoWizard : function(){
+	initCreateRepoWizard : function(repositoryOrTemplate){
+        this.currentCreateRepoType = repositoryOrTemplate;
+        if(this.currentCreateRepoType == "template"){
+            this.form.select('.repoCreationString').invoke("hide");
+            this.form.select('.tplCreationString').invoke("show");
+        }else{
+            this.form.select('.repoCreationString').invoke("show");
+            this.form.select('.tplCreationString').invoke("hide");
+        }
 		this.newRepoLabelInput = this.form.select('input[type="text"]')[0];
 		this.driverSelector = this.form.select('select')[0];
 		this.driverForm = this.form.select('div[id="driver_form"]')[0];
@@ -637,6 +667,7 @@ ConfigEditor = Class.create({
 			this.repoButtonClick(true);
 		}.bind(this));
 		this.drivers = new Hash();
+		this.templates = new Hash();
 		this.submitForm('create_repository', 'get_drivers_definition', new Hash(), null, function(xmlData){			
 			var driverNodes = XPathSelectNodes(xmlData, "drivers/ajxpdriver");			
 			for(var i=0;i<driverNodes.length;i++){				
@@ -651,19 +682,56 @@ ConfigEditor = Class.create({
 				var driverParamsArray = new Array();
 				for(j=0;j<driverParams.length;j++){
 					var paramNode = driverParams[j];
-					driverParamsArray.push(this.driverParamNodeToHash(paramNode));
+					if(this.currentCreateRepoType == "template" && paramNode.getAttribute('no_templates') == 'true'){
+						continue;
+					}else if(this.currentCreateRepoType == "repository" && paramNode.getAttribute('templates_only') == 'true'){
+                        continue;
+                    }
+					driverParamsArray.push(this.formManager.parameterNodeToHash(paramNode));
 				}
 				driverDef.set('params', driverParamsArray);
 				this.drivers.set(driverName, driverDef);
 			}
-			this.updateDriverSelector();
+			if(this.currentCreateRepoType == "template"){
+				this.updateDriverSelector();
+			}else{
+				this.submitForm('create_repository', 'get_templates_definition', new Hash(), null, function(xmlData){			
+					var driverNodes = XPathSelectNodes(xmlData, "repository_templates/template");			
+					for(var i=0;i<driverNodes.length;i++){				
+						var driver = driverNodes[i];
+						var driverDef = new Hash();
+						var driverName = XPathGetSingleNodeText(driver, "@repository_id");
+						driverDef.set('label', XPathGetSingleNodeText(driver, "@repository_label"));
+						driverDef.set('type', XPathGetSingleNodeText(driver, "@repository_type"));
+						driverDef.set('name', driverName);
+						var driverParams = XPathSelectNodes(driver, "option");
+						var optionsList = $A();
+						for(var k=0;k<driverParams.length;k++){
+							optionsList.push(driverParams[k].getAttribute("name"));
+						}
+						driverDef.set('options', optionsList);
+						this.templates.set(driverName, driverDef);
+					}
+					this.updateDriverSelector();
+				}.bind(this) );				
+			}
 		}.bind(this) );
 	},
 	
-	updateDriverSelector : function(){				
+	updateDriverSelector : function(){
 		if(!this.drivers || !this.driverSelector) return;
 		if(Prototype.Browser.IE){this.driverSelector.hide();}
-		this.driverSelector.update('<option value="0"></option>');
+		this.driverSelector.update('<option value="0" selected></option>');
+		if(this.templates.size()){
+			this.driverSelector.insert(new Element('optgroup', {label:"Repository Templates"}));
+			this.templates.each(function(pair){
+				var option = new Element('option');
+				option.setAttribute('value', 'ajxp_template_'+pair.key);
+				option.update(pair.value.get('label'));
+				this.driverSelector.insert({'bottom':option});			
+			}.bind(this));			
+		}
+		this.driverSelector.insert(new Element('optgroup', {label:"Access Drivers"}));
 		this.drivers.each(function(pair){
 			var option = new Element('option');
 			option.setAttribute('value', pair.key);
@@ -677,13 +745,22 @@ ConfigEditor = Class.create({
 	driverSelectorChange : function(){
 		var height = (Prototype.Browser.IE?62:32);
 		var dName = this.driverSelector.getValue();
-		this.createDriverForm(dName);
+		if(dName.indexOf("ajxp_template_") === 0){
+			var templateName = dName.substring(14);
+			this.createDriverFormFromTemplate(templateName);
+		}else{			
+			this.createDriverForm(dName, (this.currentCreateRepoType == "template"?true:false) );
+		}
 		if(dName != "0"){
 			var height = 130 + this.driverForm.getHeight() + (Prototype.Browser.IE?15:0);
-			if(height > 425) height=425;
+            var addscroll = false;
+			if(height > 425) {
+                height=425;
+                addscroll = true;
+            };
 		}
 		new Effect.Morph(this.driverForm.up('div'),{
-			style:'height:'+height + 'px',
+			style:'height:'+height + 'px' + (addscroll?'overflow-x:scroll':'overflow-x:auto;'),
 			duration:0.3, 
 			afterFinish : function(){
 				modal.refreshDialogPosition();
@@ -691,15 +768,34 @@ ConfigEditor = Class.create({
 			}
 		});		
 	},
+
+	createDriverFormFromTemplate : function(templateName){
+        this.driverForm.update('');
+		var templateData = this.templates.get(templateName);
+		var templateOptions = templateData.get("options");
+		var driver = this.drivers.get(templateData.get("type"));
+		var driverParams = driver.get("params");
+		var prunedParams = driverParams.findAll(function(param){
+			return !(templateOptions.include(param.get('name')));
+		});
+		this.formManager.createParametersInputs(this.driverForm, prunedParams);
+        var firstAcc = this.driverForm.down(".accordion_content");
+        if(!firstAcc) firstAcc = this.driverForm;
+		firstAcc.insert({top:'<div class="dialogLegend">' + driver.get('description')+'</div>'});		
+	},
 	
-	createDriverForm : function(driverName){
+	createDriverForm : function(driverName, addCheckBox){
+        this.driverForm.update('');
 		if(driverName == "0"){
-			this.driverForm.update('');
 			return;
 		}
 		var dOpt = this.drivers.get(driverName);
-		this.driverForm.update('<div style="padding-top:2px; padding-left:127px; margin-top: 30px; color:#79f; border-top:1px solid #ccc;">' + dOpt.get('description')+'<br></div>');
-		this.createParametersInputs(this.driverForm, dOpt.get('params'), false);
+		var options = dOpt.get('params');
+		this.formManager.createParametersInputs(this.driverForm, options, false, null, false, false, addCheckBox);
+        var firstAcc = this.driverForm.down(".accordion_content");
+        if(!firstAcc) firstAcc = this.driverForm;
+		firstAcc.insert({top:'<div class="dialogLegend">' + dOpt.get('description')+'</div>'});
+
 	},
 	
 	repoButtonClick  : function(validate){
@@ -712,13 +808,14 @@ ConfigEditor = Class.create({
 		var toSubmit = new Hash();
 		var missingMandatory = false;
 		if(this.newRepoLabelInput.value == ''){
+			$(this.newRepoLabelInput).addClassName("SF_failed");
 			missingMandatory = true;
 		}else{
 			toSubmit.set('DISPLAY', this.newRepoLabelInput.value);
 		}
 		toSubmit.set('DRIVER', this.driverSelector.options[this.driverSelector.selectedIndex].value);
-		
-		if(missingMandatory || this.submitParametersInputs(this.driverForm, toSubmit, 'DRIVER_OPTION_')){
+		var missingMandFields = this.formManager.serializeParametersInputs(this.driverForm, toSubmit, 'DRIVER_OPTION_');
+		if(missingMandatory || missingMandFields){
 			this.displayMessage("ERROR", MessageHash['ajxp_conf.36']);
 			return false;
 		}		
@@ -743,72 +840,139 @@ ConfigEditor = Class.create({
 		}.bind(this);
 		connexion.sendAsync();		
 	},
+	
+	loadPluginConfig : function(pluginId){
+		var params = new Hash();		
+		params.set("get_action", "get_plugin_manifest");
+		params.set("plugin_id", pluginId);
+		var connexion = new Connexion();
+		connexion.setParameters(params);
+		connexion.onComplete = function(transport){
+			var xmlData = transport.responseXML;
+			var params = XPathSelectNodes(xmlData, "//global_param");
+			var values = XPathSelectNodes(xmlData, "//plugin_settings_values/param");
+            var documentation = XPathSelectSingleNode(xmlData, "//plugin_doc");
+			var optionsPane = this.form.select('[id="options_pane"]')[0];
+			
+			var paramsValues = new Hash();
+			$A(values).each(function(child){
+				if(child.nodeName != 'param') return;
+				paramsValues.set(child.getAttribute('name'), child.getAttribute('value'));
+			});		
+			
+			
+			var driverParamsHash = $A([]);
+            if(pluginId.split("\.")[0] != "core"){
+                driverParamsHash.push($H({
+                    name:'AJXP_PLUGIN_ENABLED',
+                    type:'boolean',
+                    label:MessageHash['ajxp_conf.104'],
+                    description:""
+                }));
+            }
+			for(var i=0;i<params.length;i++){
+				var hashedParams = this.formManager.parameterNodeToHash(params[i]);
+				driverParamsHash.push(hashedParams);
+			}
+            var form = new Element('div', {className:'driver_form'});
+            if(documentation){
+                var docDiv = new Element('div', {style:'display:none;overflow:auto;max-height:'+parseInt(document.viewport.getHeight()*50/100)+'px'}).insert(documentation.firstChild.nodeValue);
+                docDiv.select('img').each(function(img){
+                    img.setStyle({width:'220px'});
+                    img.setAttribute('src', 'plugins/'+pluginId+'/'+img.getAttribute('src'));
+                });  
+                var link1 = MessageHash['ajxp_conf.107'];
+                var link2 = MessageHash['ajxp_conf.108'];
+                var legend = this.createTabbedFieldset(link1, form, link2, docDiv);
+                optionsPane.update(legend);
+                optionsPane.insert({bottom:form});
+                optionsPane.insert({bottom:docDiv});
+            }else{
+                optionsPane.update("<legend>"+MessageHash['ajxp_conf.107']+"</legend>");
+                optionsPane.insert({bottom:form});
+            }
+
+			if(driverParamsHash.size()){
+				this.formManager.createParametersInputs(form, driverParamsHash, true, (paramsValues.size()?paramsValues:null));
+			}else{
+				form.update(MessageHash['ajxp_conf.105']);
+			}
+			
+			modal.refreshDialogPosition();
+			modal.refreshDialogAppearance();
+			ajaxplorer.blurAll();
+		}.bind(this);
+		connexion.sendAsync();		
+	},
 
 	feedRepositoryForm: function(xmlData, metaTab){
 		
 		var repo = XPathSelectSingleNode(xmlData, "admin_data/repository");
 		var driverParams = XPathSelectNodes(xmlData, "admin_data/ajxpdriver/param");
 		var optionsPane = this.form.select('[id="options_pane"]')[0];		
-			
+		var tplParams = XPathSelectNodes(xmlData, "admin_data/template/option");
+        this.currentRepoIsTemplate = (repo.getAttribute("isTemplate") === "true");
+
+		if(tplParams.length){
+			var tplParamNames = $A();
+			for(var k=0;k<tplParams.length;k++) {
+				if(tplParams[k].getAttribute("name")){
+					tplParamNames.push(tplParams[k].getAttribute("name"));					
+				}
+			}
+		}
+		
 		var driverParamsHash = $A([]);
 		for(var i=0;i<driverParams.length;i++){
-			driverParamsHash.push(this.driverParamNodeToHash(driverParams[i]));
+			var hashedParams = this.formManager.parameterNodeToHash(driverParams[i]);
+			if(tplParamNames && tplParamNames.include(hashedParams.get('name'))) continue;
+            if(this.currentRepoIsTemplate && driverParams[i].getAttribute('no_templates') == 'true'){
+                continue;
+            }else if(!this.currentRepoIsTemplate && driverParams[i].getAttribute('templates_only') == 'true'){
+                continue;
+            }
+			driverParamsHash.push(hashedParams);
 		}
 				
 		var form = new Element('div', {className:'driver_form'});
-		var metaForm = new Element('div', {className:'driver_form', style:'display:none;'});
 		
-		var link1 = XPathGetSingleNodeText(xmlData, "admin_data/ajxpdriver/@name").toUpperCase()+' '+ MessageHash['ajxp_conf.41'];
-		var link2 = MessageHash['ajxp_conf.10'];
-		
-		var legend = this.createTabbedFieldset(link1, form, link2, metaForm);
-		optionsPane.update(legend);
-		optionsPane.insert({bottom:form});
-		optionsPane.insert({bottom:metaForm});
-		
-		/*
-		var optLegend = new Element('a', {className:"active"}).update(XPathGetSingleNodeText(xmlData, "admin_data/ajxpdriver/@name").toUpperCase()+' '+ MessageHash['ajxp_conf.41']);
-		var metaLegend = new Element('a').update(MessageHash['ajxp_conf.10']);
-		var legend = new Element('legend');
-		legend.insert(optLegend);
-		legend.insert(" | ");
-		legend.insert(metaLegend);
-				
-		optLegend.observe("click", function(){
-			metaForm.hide();form.show();
-			optLegend.addClassName('active');
-			metaLegend.removeClassName('active');
-			modal.refreshDialogAppearance();
-		});
-		metaLegend.observe("click", function(){
-			form.hide();metaForm.show();
-			metaLegend.addClassName('active');
-			optLegend.removeClassName('active');
-			modal.refreshDialogAppearance();
-		});
-		*/
+		if(!tplParams.length){
+			var metaForm = new Element('div', {className:'driver_form', style:'display:none;'});		
+			var link1 = XPathGetSingleNodeText(xmlData, "admin_data/ajxpdriver/@name").toUpperCase()+' '+ MessageHash['ajxp_conf.41'];
+			var link2 = MessageHash['ajxp_conf.10'];		
+			var legend = this.createTabbedFieldset(link1, form, link2, metaForm);
+			optionsPane.update(legend);
+			optionsPane.insert({bottom:form});
+			optionsPane.insert({bottom:metaForm});			
+		}else{
+			optionsPane.update("<legend>Repository Options</legend>");
+			optionsPane.insert({bottom:form});			
+		}
 				
 		var paramsValues = new Hash();
 		$A(repo.childNodes).each(function(child){
 			if(child.nodeName != 'param') return;
 			paramsValues.set(child.getAttribute('name'), child.getAttribute('value'));
-		});
+		});		
 		var writeable = (repo.getAttribute("writeable")?(repo.getAttribute("writeable")=="true"):false);			
 		this.currentForm = form;
 		this.currentRepoId = repo.getAttribute("index");
 		this.currentRepoWriteable = writeable;
-		this.createParametersInputs(form, driverParamsHash, false, paramsValues, !writeable);
+		this.formManager.createParametersInputs(form, driverParamsHash, false, paramsValues, !writeable, false, this.currentRepoIsTemplate);
 		
-		if(writeable){
-			this.feedMetaSourceForm(xmlData, metaForm);		
-			if(metaTab){
-				form.hide();metaForm.show();
-				metaLegend.addClassName('active');
-				optLegend.removeClassName('active');
-				modal.refreshDialogAppearance();			
-			}
-		}else{
-			metaForm.update(MessageHash['ajxp_conf.88']);
+		if(!tplParams.length){
+			if(writeable){
+				this.feedMetaSourceForm(xmlData, metaForm);		
+				if(metaTab){
+					form.hide();metaForm.show();
+					metaLegend.addClassName('active');
+					optLegend.removeClassName('active');
+					modal.refreshDialogAppearance();
+                    modal.refreshDialogPosition();
+				}
+			}else{
+				metaForm.update(MessageHash['ajxp_conf.88']);
+			}			
 		}
 		
 	},
@@ -823,10 +987,10 @@ ConfigEditor = Class.create({
 				var metaDefNodes = XPathSelectNodes(xmlData, 'admin_data/metasources/meta[@id="'+plugId+'"]/param');
 				var driverParamsHash = $A([]);
 				for(var i=0;i<metaDefNodes.length;i++){
-					driverParamsHash.push(this.driverParamNodeToHash(metaDefNodes[i]));
+					driverParamsHash.push(this.formManager.parameterNodeToHash(metaDefNodes[i]));
 				}
 				paramsValues = new Hash(metaSourcesData[plugId]);
-				this.createParametersInputs(form, driverParamsHash, true, paramsValues, false);
+				this.formManager.createParametersInputs(form, driverParamsHash, true, paramsValues, false, true);
 				metaPane.insert(form);
 			}
 		}
@@ -853,11 +1017,12 @@ ConfigEditor = Class.create({
 				var metaDefNodes = XPathSelectNodes(xmlData, 'admin_data/metasources/meta[@id="'+plugId+'"]/param');
 				var driverParamsHash = $A([]);
 				for(var i=0;i<metaDefNodes.length;i++){
-					driverParamsHash.push(this.driverParamNodeToHash(metaDefNodes[i]));
+					driverParamsHash.push(this.formManager.parameterNodeToHash(metaDefNodes[i]));
 				}				
-				this.createParametersInputs(addFormDetail, driverParamsHash, true);				
+				this.formManager.createParametersInputs(addFormDetail, driverParamsHash, true, null, null, true);
 			}
 			modal.refreshDialogAppearance();
+            modal.refreshDialogPosition();
 		}.bind(this));
 
 		metaPane.select('img').each(function(img){
@@ -882,7 +1047,7 @@ ConfigEditor = Class.create({
 			params.set('get_action', img.getAttribute('name'));
 		}
 		params.set('repository_id', this.currentRepoId);
-		this.submitParametersInputs(form, params, "DRIVER_OPTION_");
+		this.formManager.serializeParametersInputs(form, params, "DRIVER_OPTION_");
 		if(params.get('get_action') == 'add_meta_source' && params.get('DRIVER_OPTION_new_meta_source') == ''){
 			alert(MessageHash['ajxp_conf.42']);
 			return;
@@ -916,16 +1081,7 @@ ConfigEditor = Class.create({
 		
 	/*************************************/
 	/*       COMMON FUNCTIONS            */
-	/*************************************/	
-	driverParamNodeToHash : function(driverNode){
-		var driversAtts = $A(['name', 'type', 'label', 'description', 'default', 'mandatory']);
-		var driverHash = new Hash();
-		driversAtts.each(function(attName){
-			driverHash.set(attName, (XPathGetSingleNodeText(driverNode, '@'+attName) || ''));
-		});
-		return driverHash;
-	},	
-	
+	/*************************************/		
 	createTabbedFieldset: function(link1, pane1, link2, pane2){
 		var legend1 = new Element('a', {className:"active"}).update(link1);
 		var legend2 = new Element('a').update(link2);
@@ -939,83 +1095,17 @@ ConfigEditor = Class.create({
 			legend1.addClassName('active');
 			legend2.removeClassName('active');
 			modal.refreshDialogAppearance();
+			modal.refreshDialogPosition();
 		});
 		legend2.observe("click", function(){
 			pane1.hide();pane2.show();
 			legend2.addClassName('active');
 			legend1.removeClassName('active');
 			modal.refreshDialogAppearance();
+            modal.refreshDialogPosition();
 		});				
 		return legend;
 	},
-	
-	createParametersInputs : function(form, parametersDefinitions, showTip, values, disabled){
-		parametersDefinitions.each(function(param){		
-			var label = param.get('label');
-			if(param.get('labelId')){
-				label = MessageHash[param.get('labelId')];
-			}
-			var name = param.get('name');
-			var type = param.get('type');
-			var desc = param.get('description');
-			if(param.get('descriptionId')){
-				desc = MessageHash[param.get('descriptionId')];
-			}
-			var mandatory = false;
-			if(param.get('mandatory') && param.get('mandatory')=='true') mandatory = true;
-			var defaultValue = (values?'':(param.get('default') || ""));
-			if(values && values.get(name)){
-				defaultValue = values.get(name);
-			}
-			var element;
-			var disabledString = (disabled?' disabled="true" ':'');
-			if(type == 'string' || type == 'integer'){
-				element = '<input type="text" ajxp_type="'+type+'" ajxp_mandatory="'+(mandatory?'true':'false')+'" name="'+name+'" value="'+defaultValue+'"'+disabledString+' class="SF_input">';
-		    }else if(type == 'password'){
-				element = '<input type="password" autocomplete="off" ajxp_type="'+type+'" ajxp_mandatory="'+(mandatory?'true':'false')+'" name="'+name+'" value="'+defaultValue+'"'+disabledString+' class="SF_input">';
-			}else if(type == 'boolean'){
-				var selectTrue, selectFalse;
-				if(defaultValue){
-					if(defaultValue == "true" || defaultValue == "1") selectTrue = true;
-					if(defaultValue == "false" || defaultValue == "0") selectFalse = true;
-				}
-				element = '<input type="radio" ajxp_type="'+type+'" class="SF_box" name="'+name+'" value="true" '+(selectTrue?'checked':'')+''+disabledString+'> Yes';
-				element = element + '<input type="radio" ajxp_type="'+type+'" class="SF_box" name="'+name+'" '+(selectFalse?'checked':'')+' value="false"'+disabledString+'> No';
-				element = '<div class="SF_input">'+element+'</div>';
-			}
-			var div = new Element('div', {className:"SF_element"}).update('<div class="SF_label">'+label+(mandatory?'*':'')+' :</div>'+element);
-			form.insert({'bottom':div});
-			if(desc){
-				modal.simpleTooltip(div.select('.SF_label')[0], desc);
-			}
-		});
-	},
-	
-	submitParametersInputs : function(form, parametersHash, prefix){
-		prefix = prefix || '';
-		var missingMandatory = false;
-		form.select('input').each(function(el){			
-			if(el.type == "text" || el.type == "password"){
-				if(el.getAttribute('ajxp_mandatory') == 'true' && el.value == ''){
-					missingMandatory = true;
-				}
-				parametersHash.set(prefix+el.name, el.value);				
-			}
-			else if(el.type=="radio" && el.checked){
-				parametersHash.set(prefix+el.name, el.value)
-			};
-			if(el.getAttribute('ajxp_type')){
-				parametersHash.set(prefix+el.name+'_ajxptype', el.getAttribute('ajxp_type'));
-			}
-		});		
-		form.select('select').each(function(el){
-			if(el.getAttribute("ajxp_mandatory") == 'true' && el.getValue() == ''){
-				missingMandatory = true;
-			}
-			parametersHash.set(prefix+el.name, el.getValue());
-		});
-		return missingMandatory;
-	},	
 	
 	submitForm: function(mainAction, action, parameters, formName, callback){
 		//var connexion = new Connexion('admin.php');
@@ -1059,19 +1149,11 @@ ConfigEditor = Class.create({
 	parseXmlMessage: function(xmlResponse){
 		if(xmlResponse == null || xmlResponse.documentElement == null) return;
 		var childs = xmlResponse.documentElement.childNodes;	
-		var driversList = false;
-		var driversAtts = $A(['name', 'type', 'label', 'description', 'default', 'mandatory']);
 		var repList = false;
-		var logFilesList = false;
-		var logsList = false;
-		
+
 		for(var i=0; i<childs.length;i++)
 		{
-			if(childs[i].nodeName == "message")
-			{
-				this.displayMessage(childs[i].getAttribute('type'), childs[i].firstChild.nodeValue);
-			}
-			else if(childs[i].nodeName == "update_checkboxes")
+            if(childs[i].nodeName == "update_checkboxes")
 			{
 				var userId = childs[i].getAttribute('user_id');
 				var repositoryId = childs[i].getAttribute('repository_id');
@@ -1088,53 +1170,12 @@ ConfigEditor = Class.create({
 				repList = true;
 				this.repositories.set(childs[i].getAttribute('index'), childs[i]);
 			}
-			else if(childs[i].tagName == "reload_instruction")
-			{
-				var obName = childs[i].getAttribute('object');
-				if(obName == 'list')
-				{
-					var file = childs[i].getAttribute('file');
-					ajaxplorer.getContextHolder().setPendingSelection(file);
-					ajaxplorer.fireContextRefresh();
-					ajaxplorer.getContextHolder().clearPendingSelection();
-				}else if(obName == "repository_list"){
-					ajaxplorer.reloadRepositoriesList();
-				}
-			}			
 		}
+        ajaxplorer.actionBar.parseXmlMessage(xmlResponse);
 	},
 
-	closeMessageDiv: function(){
-		if(this.messageDivOpen)
-		{
-			new Effect.Fade(this.messageBox);
-			this.messageDivOpen = false;
-		}
-	},
-	
-	tempoMessageDivClosing: function(){
-		this.messageDivOpen = true;
-		setTimeout(function(){this.closeMessageDiv();}.bind(this), 3000);
-	},
 	
 	displayMessage: function(messageType, message){
-		this.messageBox = $('message_div');
-		if(!this.messageBox){
-			this.messageBox = new Element("div", {title:MessageHash[98],id:"message_div",className:"messageBox"});
-			$(document.body).insert(this.messageBox);
-			this.messageContent = new Element("div", {id:"message_content"});
-			this.messageBox.update(this.messageContent);
-			this.messageBox.observe("click", this.closeMessageDiv.bind(this));
-		}		
-		message = message.replace(new RegExp("(\\n)", "g"), "<br>");
-		if(messageType == "ERROR"){ this.messageBox.removeClassName('logMessage');  this.messageBox.addClassName('errorMessage');}
-		else { this.messageBox.removeClassName('errorMessage');  this.messageBox.addClassName('logMessage');}
-		$('message_content').innerHTML = message;
-		this.messageBox.style.top = '80%';
-		this.messageBox.style.left = '60%';
-		this.messageBox.style.width = '30%';
-		new Effect.Corner(this.messageBox,"round");
-		new Effect.Appear(this.messageBox);
-		this.tempoMessageDivClosing();
+        ajaxplorer.displayMessage(messageType, message);
 	}
 });

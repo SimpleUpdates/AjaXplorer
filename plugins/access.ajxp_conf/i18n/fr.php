@@ -1,15 +1,23 @@
 <?php
-//---------------------------------------------------------------------------------------------------
-//
-//	AjaXplorer
-//
-//	Copyright 2007-2010 Charles du Jeu - LGPL
-//  www.Ajaxplorer.info
-//
-//  Reference dictionnary for translations
-//
-//---------------------------------------------------------------------------------------------------
-
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
+ * This file is part of AjaXplorer.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
+ */
 $mess=array(
 "1" => "Données de configuration",
 "2" => "Utilisateurs",
@@ -100,6 +108,32 @@ $mess=array(
 "87" => "Les actions ont été mises à jour pour ce rôle.",
 "88" => "Ce dépot est défini dans le fichier de configuration, il n'est pas possible de mettre à jour les métadonnées via l'interface.",
 "89" => "Données spécifiques de l'utilisateur",
+"90" => "Dépôt",
+"91" => "Modèle",
+"92" => "Créer un nouveau modèle",
+"93" => "Edition",
+"94" => "Edition en masse",
+"95" => "Choisir un libellé et un driver pour accèder aux données (vérifiez les différentes sections qui contiennent des champs obligatoires, vous pouvez passer la souris sur les labels pour avoir plus d'infos).",
+"96" => "Choisir un libellé et un driver, puis choisir les champs que vous voulez pré-remplir pour constituer ce modèle. Vous pouvez cocher des champs et les laisser vide.",
+"repository_access_key" => "D",
+"97" => "Plugin options successfully updated",
+"98" => "Options Principales",
+"99" => "Extensions",
+"100" => "Options communes pour les '%s'",
+"101" => "Nom",
+"102" => "Identifiant",
+"103" => "Description",
+"104" => "Actif",
+"105" => "Vérification",
+"106" => "Identifiant unique",
+"107" => "Configuration du plugin",
+"108" => "Documentation",
+"109" => "Configurations Globales",
+"110" => "Dépôts & Utilisateurs",
+"111" => "Logs & Autres données",
+"112" => "<b>Appliquer ce rôle par défaut</b> à tous les nouveaux utilisateurs.",
+"113" => "Le rôle a été modifié avec succès",
+"114" => "Defaut",
 /* END SENTENCE */
 );
 ?>

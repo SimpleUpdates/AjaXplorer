@@ -1,42 +1,30 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : Standard text logging plugin.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
+
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH. "/server/classes/class.AbstractLogDriver.php");
-
+/**
+ * @package info.ajaxplorer.plugins
+ * Standard logger. Writes logs into text files
+ */
 class textLogDriver extends AbstractLogDriver {
 	
 	/**
@@ -89,10 +77,22 @@ class textLogDriver extends AbstractLogDriver {
 	 */
 	function open(){
 		if($this->storageDir!=""){
+			$create = false;
+			if(!file_exists($this->storageDir . $this->logFileName)){
+				// file creation
+				$create = true; 
+			}
 			$this->fileHandle = @fopen($this->storageDir . $this->logFileName, "at+");
 			if($this->fileHandle !== false && count($this->stack)){
 				$this->stackFlush();
-			}		
+			}
+			if($create && $this->fileHandle !== false){
+				$mainLink = $this->storageDir."ajxp_access.log";
+				if(file_exists($mainLink)){
+					@unlink($mainLink);
+				}
+				@symlink($this->storageDir.$this->logFileName, $mainLink);
+			}
 		}		
 	}
 	
@@ -211,7 +211,7 @@ class textLogDriver extends AbstractLogDriver {
 	 * @param Integer $month The month to list.
 	 * @return null
 	 */
-	function xmlListLogFiles($nodeName="file", $year=null, $month=null){
+	function xmlListLogFiles($nodeName="file", $year=null, $month=null, $rootPath = "/logs"){
 		$dir = $this->storageDir;
 		if(!is_dir($this->storageDir)) return ;
 		$logs = array();
@@ -219,7 +219,7 @@ class textLogDriver extends AbstractLogDriver {
 		$months = array();
 		if(($handle = opendir($this->storageDir))!==false){
 			while($file = readdir($handle)){
-				if($file == "index.html") continue;
+				if($file == "index.html" || $file == "ajxp_access.log") continue;
 				$split = explode(".", $file);
 				if(!count($split) || $split[0] == "") continue;
 				$split2 = explode("_", $split[0]);
@@ -233,9 +233,9 @@ class textLogDriver extends AbstractLogDriver {
 				$fullMonth = date("F", $time);
 				if($year != null && $fullYear != $year) continue;
 				if($month != null && $fullMonth != $month) continue;
-				$logs[$time] = "<$nodeName icon=\"toggle_log.png\" date=\"$display\" display=\"$display\" text=\"$date\" is_file=\"0\" filename=\"/logs/$fullYear/$fullMonth/$date\"/>";
-				$years[$logY] = "<$nodeName icon=\"x-office-calendar.png\" date=\"$fullYear\" display=\"$fullYear\" text=\"$fullYear\" is_file=\"0\" filename=\"/logs/$fullYear\"/>";
-				$months[$logM] = "<$nodeName icon=\"x-office-calendar.png\" date=\"$fullMonth\" display=\"$logM\" text=\"$fullMonth\" is_file=\"0\" filename=\"/logs/$fullYear/$fullMonth\"/>";
+				$logs[$time] = "<$nodeName icon=\"toggle_log.png\" date=\"$display\" display=\"$display\" text=\"$date\" is_file=\"0\" filename=\"$rootPath/$fullYear/$fullMonth/$date\"/>";
+				$years[$logY] = "<$nodeName icon=\"x-office-calendar.png\" date=\"$fullYear\" display=\"$fullYear\" text=\"$fullYear\" is_file=\"0\" filename=\"$rootPath/$fullYear\"/>";
+				$months[$logM] = "<$nodeName icon=\"x-office-calendar.png\" date=\"$fullMonth\" display=\"$logM\" text=\"$fullMonth\" is_file=\"0\" filename=\"$rootPath/$fullYear/$fullMonth\"/>";
 			}
 			closedir($handle);	
 		}
@@ -258,7 +258,7 @@ class textLogDriver extends AbstractLogDriver {
 	 * @param String $nodeName The name of the node to use for each log item.
 	 * @return null
 	 */
-	function xmlLogs($parentDir, $date, $nodeName = "log"){
+	function xmlLogs($parentDir, $date, $nodeName = "log", $rootPath = "/logs"){
 				
 		$fName = $this->storageDir."log_".$date.".txt";
 
@@ -277,7 +277,11 @@ class textLogDriver extends AbstractLogDriver {
 					$matches[$key] = $match;
 				}
 				if(count($matches) < 3) continue;
-				print(SystemTextEncoding::toUTF8("<$nodeName is_file=\"1\" filename=\"$fileName\" ajxp_mime=\"log\" date=\"$matches[1]\" ip=\"$matches[2]\" level=\"$matches[3]\" user=\"$matches[4]\" action=\"$matches[5]\" params=\"$matches[6]\" icon=\"toggle_log.png\" />"));
+                // rebuild timestamp
+                $date = $matches[1];
+                list($m,$d,$Y,$h,$i,$s) = sscanf($date, "%i-%i-%i %i:%i:%i");
+                $tStamp = mktime($h,$i,$s,$m,$d,$Y);
+				print(SystemTextEncoding::toUTF8("<$nodeName is_file=\"1\" ajxp_modiftime=\"$tStamp\" filename=\"$fileName\" ajxp_mime=\"log\" date=\"$matches[1]\" ip=\"$matches[2]\" level=\"$matches[3]\" user=\"$matches[4]\" action=\"$matches[5]\" params=\"$matches[6]\" icon=\"toggle_log.png\" />", false));
 			}
 		}
 		return ;

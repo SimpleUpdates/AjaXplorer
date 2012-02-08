@@ -1,36 +1,21 @@
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : The "online edition" manager, encapsulate the CodePress highlighter for some extensions.
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
 Class.create("ExifEditor", AbstractEditor, {
 
@@ -58,7 +43,7 @@ Class.create("ExifEditor", AbstractEditor, {
 		$super(userSelection);
 		var fileName = userSelection.getUniqueFileName();
 		// LOAD FILE NOW
-		this.contentMainContainer = new Element("div", {id:"exifContainer",style:"overflow:auto;background-image:url('"+ajxpResourcesFolder+"/images/strip.png');font-family:Trebuchet MS"});
+		this.contentMainContainer = new Element("div", {id:"exifContainer",style:"overflow:auto;font-family:Trebuchet MS"});
 		this.element.insert(this.contentMainContainer);
 		fitHeightToBottom($(this.contentMainContainer), $(modal.elementName));
 		this.updateTitle(getBaseName(fileName));
@@ -84,6 +69,7 @@ Class.create("ExifEditor", AbstractEditor, {
 		
 	columnsLayout : function(reset){		
 		var container = this.contentMainContainer;
+        if(!container) return;
 		if(reset){
 			container.select('div.exifSection').each(function(el){container.insert(el);});
 			container.select('div.column').invoke("remove");
@@ -122,7 +108,7 @@ Class.create("ExifEditor", AbstractEditor, {
 			this.contentMainContainer.insert(div);
 			var sectionName = sections[i].getAttribute("name");
 			div.insert('<div class="panelHeader infoPanelGroup">'+sectionName+'</div>');
-			div.insert('<table class="infoPanelTable" '+(Prototype.Browser.IE?'style="width:97%;"':'')+'><tbody></tbody></table>');
+			div.insert('<table class="infoPanelTable" '+(Prototype.Browser.IE?'style="width:97%;"':'')+' cellspacing="0" ><tbody></tbody></table>');
 			var tBody = div.down('tbody');
 			var even = false;
 			this.itemsCount ++;

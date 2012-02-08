@@ -1,40 +1,30 @@
 <?php
-/**
- * @package info.ajaxplorer.plugins
- * 
- * Copyright 2007-2010 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : Exif extractor
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
+
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
+/**
+ * @package info.ajaxplorer.plugins
+ * Extract Exif data from JPEG IMAGES
+ */
 class ExifMetaManager extends AJXP_Plugin {
 	
 	protected $accessDriver;
@@ -44,20 +34,26 @@ class ExifMetaManager extends AJXP_Plugin {
 		$this->options = $options;		
 	}
 	
+	public function performChecks(){
+		if(!function_exists("exif_imagetype")){
+			throw new Exception("Exif PHP extension does not seem to be installed!");
+		}
+	}
+	
 	public function initMeta($accessDriver){		
 		$this->accessDriver = $accessDriver;	
 		if(!function_exists("exif_read_data")) return ;		
-		$messages = ConfService::getMessages();		
+		//$messages = ConfService::getMessages();
 		$def = $this->getMetaDefinition();
 		if(!count($def)){
 			return ;
 		}
 		$cdataHead = '<div>
-						<div class="panelHeader infoPanelGroup" colspan="2">'.$messages["meta.exif.1"].'</div>
+						<div class="panelHeader infoPanelGroup" colspan="2">AJXP_MESSAGE[meta.exif.1]</div>
 						<table class="infoPanelTable" cellspacing="0" border="0" cellpadding="0">';
 		$cdataFoot = '</table></div>';
 		$cdataParts = "";
-		
+		$even = false;
 		foreach ($def as $key=>$label){
 			$trClass = ($even?" class=\"even\"":"");
 			$even = !$even;
@@ -105,9 +101,11 @@ class ExifMetaManager extends AJXP_Plugin {
 		$repo->detectStreamWrapper();
 		$wrapperData = $repo->streamData;
 		$urlBase = $wrapperData["protocol"]."://".$repo->getId();		
-		$realFile = call_user_func(array($wrapperData["classname"], "getRealFSReference"), $urlBase.SystemTextEncoding::fromUTF8($httpVars["file"]));
-		ini_set('exif.encode_unicode', 'UTF-8');
-		$exifData = exif_read_data($realFile, 0, TRUE);
+		$decoded = AJXP_Utils::decodeSecureMagic($httpVars["file"]);
+		$realFile = call_user_func(array($wrapperData["classname"], "getRealFSReference"), $urlBase.$decoded);
+		AJXP_Utils::safeIniSet('exif.encode_unicode', 'UTF-8');
+		$exifData = @exif_read_data($realFile, 0, TRUE);
+        if($exifData === false || !is_array($exifData)) return;
 		if($exifData !== false && isSet($exifData["GPS"])){
 			$exifData["COMPUTED_GPS"] = $this->convertGPSData($exifData);
 		}
@@ -116,6 +114,9 @@ class ExifMetaManager extends AJXP_Plugin {
 		foreach ($exifData as $section => $data){
 			print("<exifSection name='$section'>");			
 			foreach ($data as $key => $value){
+                if(is_array($value)) {
+                    $value = implode(",", $value);
+                }
 				if(in_array(strtolower($key), $excludeTags)) continue;
 				if(!is_numeric($value)) $value = $this->string_format($value);
 				print("<exifTag name=\"$key\">".SystemTextEncoding::toUTF8($value)."</exifTag>");
@@ -136,21 +137,19 @@ class ExifMetaManager extends AJXP_Plugin {
 		return $tmpStr;
 	}
 	
-	public function extractMeta($currentFile, &$metadata, $wrapperClassName, &$realFile){
+	/**
+	 * @param AJXP_Node $ajxpNode
+	 */
+	public function extractMeta(&$ajxpNode){
+		$currentFile = $ajxpNode->getUrl();
 		$definitions = $this->getMetaDefinition();
 		if(!count($definitions)) return ;
 		if(!function_exists("exif_read_data")) return ;
 		if(is_dir($currentFile) || preg_match("/\.zip\//",$currentFile)) return ;
 		if(!preg_match("/\.jpg$|\.jpeg$|\.tif$|\.tiff$/i",$currentFile)) return ;
 		if(!exif_imagetype($currentFile)) return ;
-		if(!isset($realFile)){
-			$realFile = call_user_func(array($wrapperClassName, "getRealFSReference"), $currentFile, true);
-			$isRemote = call_user_func(array($wrapperClassName, "isRemote"));
-			if($isRemote){
-				register_shutdown_function("unlink", $realFile);
-			}
-		}
-		$exif = exif_read_data($realFile, 0, TRUE);
+		$realFile = $ajxpNode->getRealFile();
+		$exif = @exif_read_data($realFile, 0, TRUE);
 		if($exif === false) return ;
 		$additionalMeta = array();
 		foreach ($definitions as $def => $label){
@@ -162,12 +161,12 @@ class ExifMetaManager extends AJXP_Plugin {
 				$additionalMeta[$def] = $exif[$exifSection][$exifName];
 			}
 		}
-		$metadata = array_merge($metadata, $additionalMeta);
+		$ajxpNode->mergeMetadata($additionalMeta);
 	}
 
 	private function convertGPSData($exif){
 		if(!isSet($exif["GPS"])) return array();
-		require_once(INSTALL_PATH."/plugins/meta.exif/class.GeoConversion.php");
+		require_once(AJXP_INSTALL_PATH."/plugins/meta.exif/class.GeoConversion.php");
 		$converter = new GeoConversion();
 		$latDeg=$this->parseGPSValue($exif["GPS"]["GPSLatitude"][0]);
 		$latMin=$this->parseGPSValue($exif["GPS"]["GPSLatitude"][1]);
@@ -177,9 +176,11 @@ class ExifMetaManager extends AJXP_Plugin {
 		$longMin=$this->parseGPSValue($exif["GPS"]["GPSLongitude"][1]);
 		$longSec=$this->parseGPSValue($exif["GPS"]["GPSLongitude"][2]);
 		$longRef=$exif["GPS"]["GPSLongitudeRef"];
+		$latSign = ($latHem == "S" ? "-":"");
+		$longSign = ($longRef == "W" ? "-":"");
 		$gpsData = array(
-			"GPS_Latitude"=>"$latDeg deg $latMin' $latSec $latHem--".$converter->DMS2Dd($latDeg."o$latMin'$latSec"),
-			"GPS_Longitude"=>"$longDeg deg $longMin' $longSec $longRef--".$converter->DMS2Dd($longDeg."o$longMin'$longSec"),
+			"GPS_Latitude"=>"$latDeg deg $latMin' $latSec $latHem--".$converter->DMS2Dd($latSign.$latDeg."o$latMin'$latSec"),
+			"GPS_Longitude"=>"$longDeg deg $longMin' $longSec $longRef--".$converter->DMS2Dd($longSign.$longDeg."o$longMin'$longSec"),
 			"GPS_Altitude"=> $exif["GPS"]["GPSAltitude"][0]
 		);
 		return $gpsData;

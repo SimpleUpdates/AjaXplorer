@@ -1,41 +1,29 @@
 <?php
-/**
- * @package info.ajaxplorer
- * 
- * Copyright 2007-2009 Charles du Jeu
+/*
+ * Copyright 2007-2011 Charles du Jeu <contact (at) cdujeu.me>
  * This file is part of AjaXplorer.
- * The latest code can be found at http://www.ajaxplorer.info/
- * 
- * This program is published under the LGPL Gnu Lesser General Public License.
- * You should have received a copy of the license along with AjaXplorer.
- * 
- * The main conditions are as follow : 
- * You must conspicuously and appropriately publish on each copy distributed 
- * an appropriate copyright notice and disclaimer of warranty and keep intact 
- * all the notices that refer to this License and to the absence of any warranty; 
- * and give any other recipients of the Program a copy of the GNU Lesser General 
- * Public License along with the Program. 
- * 
- * If you modify your copy or copies of the library or any portion of it, you may 
- * distribute the resulting library provided you do so under the GNU Lesser 
- * General Public License. However, programs that link to the library may be 
- * licensed under terms of your choice, so long as the library itself can be changed. 
- * Any translation of the GNU Lesser General Public License must be accompanied by the 
- * GNU Lesser General Public License.
- * 
- * If you copy or distribute the program, you must accompany it with the complete 
- * corresponding machine-readable source code or with a written offer, valid for at 
- * least three years, to furnish the complete corresponding machine-readable source code. 
- * 
- * Any of the above conditions can be waived if you get permission from the copyright holder.
- * AjaXplorer is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * 
- * Description : Abstract representation of an access to an authentication system (ajxp, ldap, etc).
+ *
+ * AjaXplorer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * AjaXplorer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with AjaXplorer.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * The latest code can be found at <http://www.ajaxplorer.info/>.
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-require_once(INSTALL_PATH."/server/classes/class.AbstractAuthDriver.php");
+/**
+ * @package info.ajaxplorer.plugins
+ * Still experimental, ability to encapsulate many auth drivers and choose the right one at login.
+ */
 class multiAuthDriver extends AbstractAuthDriver {
 	
 	var $driverName = "multi";
@@ -53,6 +41,8 @@ class multiAuthDriver extends AbstractAuthDriver {
 		foreach($this->driversDef as $def){
 			$name = $def["NAME"];
 			$options = $def["OPTIONS"];
+			$options["TRANSMIT_CLEAR_PASS"] = $this->options["TRANSMIT_CLEAR_PASS"];
+			$options["LOGIN_REDIRECT"] = $this->options["LOGIN_REDIRECT"];			
 			$instance = AJXP_PluginsService::findPlugin("auth", $name);
 			if(!is_object($instance)){
 				throw new Exception("Cannot find plugin $name for type 'auth'");
@@ -65,10 +55,10 @@ class multiAuthDriver extends AbstractAuthDriver {
 		// SESSION IS ALREADY STARTED.
 	}
 	
-	public function getRegistryContributions(){
+	public function getRegistryContributions( $extendedVersion = true ){
 		AJXP_Logger::debug("get contributions NOW");
 		$this->loadRegistryContributions();
-		return parent::getRegistryContributions();
+		return parent::getRegistryContributions( $extendedVersion );
 	}
 		
 	private function detectCurrentDriver(){
@@ -107,6 +97,7 @@ class multiAuthDriver extends AbstractAuthDriver {
 		}
 		$xmlContent = str_replace("AJXP_MULTIAUTH_SOURCES", json_encode($sources), $xmlContent);
 		$xmlContent = str_replace("AJXP_MULTIAUTH_MASTER", $this->getOption("MASTER_DRIVER"), $xmlContent);
+		$xmlContent = str_replace("AJXP_USER_ID_SEPARATOR", $this->getOption("USER_ID_SEPARATOR"), $xmlContent);
 		$patchDoc = DOMDocument::loadXML($xmlContent);
 		$patchNode = $patchDoc->documentElement;
 		$imported = $contribNode->ownerDocument->importNode($patchNode, true);
@@ -129,7 +120,7 @@ class multiAuthDriver extends AbstractAuthDriver {
 	}
 	
 	protected function extractRealId($userId){
-		$parts = explode("::", $userId);
+		$parts = explode($this->getOption("USER_ID_SEPARATOR"), $userId);
 		if(count($parts) == 2){
 			return $parts[1];
 		}
@@ -209,8 +200,8 @@ class multiAuthDriver extends AbstractAuthDriver {
 	}	
 	
 	function changePassword($login, $newPass){
-		if($this->getCurrentDriver()){
-			return $this->getCurrentDriver()->usersEditable();
+		if($this->getCurrentDriver() && $this->getCurrentDriver()->usersEditable()){
+			return $this->getCurrentDriver()->changePassword($login, $newPass);
 		}else{
 			throw new Exception("No driver instanciated in multi driver!");
 		}		
