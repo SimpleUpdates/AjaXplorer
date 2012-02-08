@@ -52,9 +52,9 @@ $PLUGINS = array(
 	"CONF_DRIVER" => array(
 		"NAME"		=> "serial",
 		"OPTIONS"	=> array(
-			"REPOSITORIES_FILEPATH"	=> "AJXP_DATA_PATH/plugins/conf.serial/repo.ser",
-			"ROLES_FILEPATH"		=> "AJXP_DATA_PATH/plugins/auth.serial/roles.ser",
-			"USERS_DIRPATH"			=> "AJXP_DATA_PATH/plugins/auth.serial",
+			"REPOSITORIES_FILEPATH"	=> AJXP_CACHE_DIR."/repo.ser",
+			"ROLES_FILEPATH"		=> AJXP_CACHE_DIR."/roles.ser",
+			"USERS_DIRPATH"			=> AJXP_CACHE_DIR."/users",
 			"CUSTOM_DATA"			=> array(
 					"email"	=> "Email", 
 					"country" => "Country"
@@ -65,19 +65,15 @@ $PLUGINS = array(
 		"NAME"		=> "serial",
 		"OPTIONS"	=> array(
 			"LOGIN_REDIRECT"		=> false,
-			"USERS_FILEPATH"		=> "AJXP_DATA_PATH/plugins/auth.serial/users.ser",
+			"USERS_FILEPATH"		=> AJXP_CACHE_DIR."/users/users.ser",
 			"AUTOCREATE_AJXPUSER" 	=> false, 
 			"TRANSMIT_CLEAR_PASS"	=> false )
 	),
     "LOG_DRIVER" => array(
-         "NAME" => "text",
-         "OPTIONS" => array(
-             "LOG_PATH" => (defined("AJXP_FORCE_LOGPATH")?AJXP_FORCE_LOGPATH:"AJXP_INSTALL_PATH/data/logs/"),
-             "LOG_FILE_NAME" => 'log_' . date('m-d-y') . '.txt',
-             "LOG_CHMOD" => 0770
-         )
+         "NAME" => "devnull",
+         "OPTIONS" => array()
     ),
-
+	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.pixlr", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "hook.*", "log.devnull")
     // SAMPLE USAGE OF SQL CONF DRIVER
     // Use the same SQL_DRIVER option for SQL AUTH driver.
     /*

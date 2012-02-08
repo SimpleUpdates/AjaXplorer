@@ -90,6 +90,9 @@
 									imagePath = ckData['relative_path'] + fileName;
 								}
 								window.opener.CKEDITOR.tools.callFunction(ckData['CKEditorFuncNum'], imagePath);
+								if( window.opener.CKEDITOR.dialog.getCurrent().getContentElement( 'info', 'protocol' ) !== undefined ) {
+									window.opener.CKEDITOR.dialog.getCurrent().setValueOf( 'info', 'protocol', '' );
+								}
 								window.close();
 							}
 						}

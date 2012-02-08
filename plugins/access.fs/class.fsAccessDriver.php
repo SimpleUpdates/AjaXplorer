@@ -662,6 +662,12 @@ class fsAccessDriver extends AbstractAccessDriver implements AjxpWebdavProvider
 					$fullList[$nodeType][$nodeName] = $node;
 					$cursor ++;
 				}				
+				
+				foreach ($fullList as $key => $list){
+					uksort($list, 'strnatcasecmp');
+					$fullList[$key] = $list;
+				}
+				
 				array_map(array("AJXP_XMLWriter", "renderAjxpNode"), $fullList["d"]);
 				array_map(array("AJXP_XMLWriter", "renderAjxpNode"), $fullList["z"]);
 				array_map(array("AJXP_XMLWriter", "renderAjxpNode"), $fullList["f"]);

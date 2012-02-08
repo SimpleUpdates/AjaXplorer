@@ -40,23 +40,23 @@ define("AJXP_EXEC", true);
 
 // APPLICATION PATHES CONFIGURATION
 define("AJXP_DATA_PATH", AJXP_INSTALL_PATH."/data");
-define("AJXP_CACHE_DIR", AJXP_DATA_PATH."/cache");
-define("AJXP_PLUGINS_CACHE_FILE", AJXP_CACHE_DIR."/plugins_cache.ser");
-define("AJXP_PLUGINS_REQUIRES_FILE", AJXP_CACHE_DIR."/plugins_requires.ser");
+define("AJXP_CACHE_DIR", LOCAL_DOCUMENT_ROOT.'/cache/AjaXplorer');
+define("AJXP_PLUGINS_CACHE_FILE", LOCAL_DOCUMENT_ROOT."/cache/AjaXplorer/plugins_cache.ser");
+define("AJXP_PLUGINS_REQUIRES_FILE", LOCAL_DOCUMENT_ROOT."/cache/AjaXplorer/plugins_requires.ser");
 define("AJXP_SERVER_ACCESS", "index.php");
 define("AJXP_PLUGINS_FOLDER", "plugins");
 define("AJXP_BIN_FOLDER_REL", "core/classes");
 define("AJXP_BIN_FOLDER", AJXP_INSTALL_PATH."/core/classes");
 define("AJXP_DOCS_FOLDER", "core/doc");
 define("AJXP_COREI18N_FOLDER", AJXP_INSTALL_PATH."/plugins/core.ajaxplorer/i18n");
-define("TESTS_RESULT_FILE", AJXP_CACHE_DIR."/diag_result.php");
+define("TESTS_RESULT_FILE", AJXP_INSTALL_PATH."/diag_result.php");
 define("AJXP_TESTS_FOLDER", AJXP_INSTALL_PATH."/core/tests");
 define("INITIAL_ADMIN_PASSWORD", "admin");
 define("SOFTWARE_UPDATE_SITE", "http://www.ajaxplorer.info/update/");
 // Startup admin password (used at first creation). Once
 // The admin password is created and his password is changed,
 // this config has no more impact.
-define("ADMIN_PASSWORD", "admin");
+define("ADMIN_PASSWORD", "Testing");
 // For a specific distribution, you can specify where the
 // log files will be stored. This should be detected by log.* plugins
 // and used if defined. See bootstrap_plugins.php default configs for
