@@ -296,10 +296,8 @@ class AuthService
      * @return void
      */
 	public static function bootSequence(&$START_PARAMETERS){
-		/*
-		if(!is_readable(USERS_DIR)) $START_PARAMETERS["ALERT"] = "Warning, the users directory is not readable!";
-		else if(!is_writeable(USERS_DIR)) $START_PARAMETERS["ALERT"] = "Warning, the users directory is not writeable!";
-		*/
+
+        if(@file_exists(AJXP_CACHE_DIR."/admin_counted")) return;
 		$adminCount = AuthService::countAdminUsers();
 		if($adminCount == 0){
 			$authDriver = ConfService::getAuthDriverImpl();
@@ -320,6 +318,7 @@ class AuthService
 			$adminUser->save();
 			$START_PARAMETERS["ALERT"] .= "There is an admin user, but without admin right. Now any user can have the administration rights, \\n your 'admin' user was set with the admin rights. Please check that this suits your security configuration.";
     	}
+        @file_put_contents(AJXP_CACHE_DIR."/admin_counted", "true");
 	}
     /**
      * If the auth driver implementatino has a logout redirect URL, clear session and return it.
@@ -548,7 +547,7 @@ class AuthService
      * @static
      * @return array
      */
-	static function listUsers()
+	static function listUsers($regexp = null)
 	{
 		$authDriver = ConfService::getAuthDriverImpl();		
 		$confDriver = ConfService::getConfStorageImpl();
@@ -557,6 +556,7 @@ class AuthService
 		foreach (array_keys($users) as $userId)
 		{
 			if(($userId == "guest" && !ConfService::getCoreConf("ALLOW_GUEST_BROWSING", "auth")) || $userId == "ajxp.admin.users" || $userId == "") continue;
+            if($regexp != null && !preg_match($regexp, $userId)) continue;
 			$allUsers[$userId] = $confDriver->createUserObject($userId);
 		}
 		return $allUsers;
