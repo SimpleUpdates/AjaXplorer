@@ -21,6 +21,8 @@
  * This is the main configuration file for configuring the core of the application.
  * In a standard usage, you should not have to change any variables.
  */
+SF_legacy_magicquotes::setEnabled( FALSE );
+
 if(function_exists("date_default_timezone_set") and function_exists("date_default_timezone_get")){
 	@date_default_timezone_set(@date_default_timezone_get());
 }

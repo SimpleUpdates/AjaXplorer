@@ -26,7 +26,8 @@
  */
 defined('AJXP_EXEC') or die( 'Access not allowed');
 
-session_start();
+if(!session_id())
+	session_start();
 $user = DB_user::getSessionUser();
 if( $user && SF_controller_files::canAdminFiles( $user ) ) {
 	$REPOSITORIES[0] = array(

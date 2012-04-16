@@ -62,18 +62,16 @@ $PLUGINS = array(
 			)
 	),
 	"AUTH_DRIVER" => array(
-		"NAME"		=> "serial",
+		"NAME"		=> "su",
 		"OPTIONS"	=> array(
-			"LOGIN_REDIRECT"		=> false,
-			"USERS_FILEPATH"		=> AJXP_CACHE_DIR."/users/users.ser",
-			"AUTOCREATE_AJXPUSER" 	=> false, 
-			"TRANSMIT_CLEAR_PASS"	=> false )
+			"USERS_FILEPATH"		=> AJXP_CACHE_DIR."/users/users.ser"
+			)
 	),
-    "LOG_DRIVER" => array(
-         "NAME" => "devnull",
-         "OPTIONS" => array()
-    ),
-	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.pixlr", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "hook.*", "log.devnull")
+	"LOG_DRIVER" => array(
+		 "NAME" => "devnull",
+		 "OPTIONS" => array()
+	),
+	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.pixlr", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "hook.*")
     // SAMPLE USAGE OF SQL CONF DRIVER
     // Use the same SQL_DRIVER option for SQL AUTH driver.
     /*
