@@ -70,8 +70,8 @@ $PLUGINS = array(
 	"LOG_DRIVER" => array(
 		 "NAME" => "devnull",
 		 "OPTIONS" => array()
-	),
-	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.pixlr", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "hook.*")
+    ),
+	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.pixlr", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "gui.mobile", "hook.*", "log.devnull")
     // SAMPLE USAGE OF SQL CONF DRIVER
     // Use the same SQL_DRIVER option for SQL AUTH driver.
     /*
