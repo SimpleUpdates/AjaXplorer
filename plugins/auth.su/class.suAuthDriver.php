@@ -74,13 +74,5 @@ class suAuthDriver extends serialAuthDriver  {
 		return true;
 	}
 
-	function getLoginRedirect(){
-		return 'login.php';
-	}
-
-	function getLogoutRedirect(){
-		return 'logout.php';
-	}
-
 }
 ?>

@@ -31,7 +31,7 @@ $AUTH_DRIVER = array(
 	</server_settings>
 	<class_definition filename="plugins/auth.su/class.suAuthDriver.php" classname="suAuthDriver"/>
 	<registry_contributions>
-		<external_file filename="plugins/core.auth/standard_auth_actions.xml" include="actions/*" exclude=""/>
+		<external_file filename="plugins/core.auth/standard_auth_actions.xml" include="actions/*" exclude="actions/*"/>
 	</registry_contributions>
 	<dependencies>
 		<pluginClass pluginName="auth.serial"/>
