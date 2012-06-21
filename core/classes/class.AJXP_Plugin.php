@@ -326,7 +326,9 @@ class AJXP_Plugin implements Serializable{
 			$this->$key = unserialize($value);
 		}
 		if($this->manifestXML != NULL){			
-			$this->manifestDoc = DOMDocument::loadXML(base64_decode($this->manifestXML));
+			$doc = new DOMDocument();
+			$doc->loadXML(base64_decode($this->manifestXML));
+			$this->manifestDoc = $doc;
 			$this->reloadXPath();			
 			unset($this->manifestXML);
 		}
