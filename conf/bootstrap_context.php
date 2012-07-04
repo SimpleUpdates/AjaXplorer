@@ -41,10 +41,12 @@ define("AJXP_VERSION_DATE", $vDate);
 define("AJXP_EXEC", true);
 
 // APPLICATION PATHES CONFIGURATION
-define("AJXP_DATA_PATH", AJXP_INSTALL_PATH."/data");
+define("AJXP_DATA_PATH", LOCAL_DOCUMENT_ROOT.'/cache/AjaXplorer/data');
 define("AJXP_CACHE_DIR", LOCAL_DOCUMENT_ROOT.'/cache/AjaXplorer');
+define("AJXP_SHARED_CACHE_DIR", LOCAL_DOCUMENT_ROOT.'/cache/AjaXplorer');
 define("AJXP_PLUGINS_CACHE_FILE", LOCAL_DOCUMENT_ROOT."/cache/AjaXplorer/plugins_cache.ser");
 define("AJXP_PLUGINS_REQUIRES_FILE", LOCAL_DOCUMENT_ROOT."/cache/AjaXplorer/plugins_requires.ser");
+define("AJXP_PLUGINS_MESSAGES_FILE", LOCAL_DOCUMENT_ROOT."/cache/AjaXplorer/plugins_messages.ser");
 define("AJXP_SERVER_ACCESS", "index.php");
 define("AJXP_PLUGINS_FOLDER", "plugins");
 define("AJXP_BIN_FOLDER_REL", "core/classes");
@@ -58,7 +60,7 @@ define("SOFTWARE_UPDATE_SITE", "http://www.ajaxplorer.info/update/");
 // Startup admin password (used at first creation). Once
 // The admin password is created and his password is changed,
 // this config has no more impact.
-define("ADMIN_PASSWORD", "Testing");
+define("ADMIN_PASSWORD", "AJXP1sFunny");
 // For a specific distribution, you can specify where the
 // log files will be stored. This should be detected by log.* plugins
 // and used if defined. See bootstrap_plugins.php default configs for
@@ -87,12 +89,27 @@ function AjaXplorer_autoload($className){
     $corePlugClass = glob(AJXP_INSTALL_PATH."/".AJXP_PLUGINS_FOLDER."/core.*/class.".$className.".php", GLOB_NOSORT);
     if($corePlugClass !== false && count($corePlugClass)){
         require_once($corePlugClass[0]);
+        return;
+    }
+    $corePlugInterface = glob(AJXP_INSTALL_PATH."/".AJXP_PLUGINS_FOLDER."/core.*/interface.".$className.".php", GLOB_NOSORT);
+    if($corePlugInterface !== false && count($corePlugInterface)){
+        require_once($corePlugInterface[0]);
+        return;
     }
 }
 spl_autoload_register('AjaXplorer_autoload');
 
 AJXP_Utils::safeIniSet("session.cookie_httponly", 1);
-//AJXP_Utils::safeIniSet("session.cookie_path", "/ajaxplorer");
+
+if(is_file(AJXP_CONF_PATH."/bootstrap_conf.php")){
+    include(AJXP_CONF_PATH."/bootstrap_conf.php");
+    if(isSet($AJXP_INISET)){
+        foreach($AJXP_INISET as $key => $value) AJXP_Utils::safeIniSet($key, $value);
+    }
+    if(defined('AJXP_LOCALE')){
+        setlocale(LC_ALL, AJXP_LOCALE);
+    }
+}
 
 setcookie("SKIP_IOS", "true");
 setcookie("SKIP_ANDROID", "true");

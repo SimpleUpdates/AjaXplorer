@@ -6,7 +6,7 @@ $mess = array(
     // will be replaced by the filename to download
     "2" => "Click on the image to download <b>%s</b> to your hard drive",
     "3" => "Wrong password",
-    "4" => "Enter the required password on click on the image to download <b>%s</b> to your hard drive",
+    "4" => "Enter the required password and click on the image to download <b>%s</b> to your hard drive",
     "5" => "password",
     "6" => "Stop Sharing",
     "7" => "Stopping the share will not remove the file. If you want to change the parameters, re-share the file.",
@@ -22,7 +22,10 @@ $mess = array(
     "17"=> "Click to reset download counter",
     "18"=> "Folder is shared as a new repository",
     "19"=> "Shared repository options were successfully modified",
-    "20"=> "Ooops, the file you required could not be found! Maybe it was deleted or it is not shared with you anymore."
+    "20"=> "Ooops, the file you required could not be found! Maybe it was deleted or it is not shared with you anymore.",
+    "21"=> "Expire after (days): ",
+    "22"=> "Allowed Downloads: ",
+    "23"=> "Optional password: ",
+    "24"=> "Set expiration limits and define a password to access the file, then click on \"Generate\".",
+    "25"=> "No limit"
 );
-
-?>

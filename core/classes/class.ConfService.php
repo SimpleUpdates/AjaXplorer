@@ -191,7 +191,7 @@ class ConfService
      * @return bool
      */
 	public static function currentContextIsCommandLine(){
-		return defined('STDIN');
+		return php_sapi_name() === "cli";
 	}
 	/**
      * Check the presence of mcrypt and option CMDLINE_ACTIVE
@@ -229,7 +229,33 @@ class ConfService
 		return self::getInstance()->getUniquePluginImplInst("LOG_DRIVER", "log");
 	}
 
-	
+	public static function switchUserToActiveRepository($loggedUser, $parameterId = -1){
+        if(isSet($_SESSION["PENDING_REPOSITORY_ID"]) && isSet($_SESSION["PENDING_FOLDER"])){
+            $loggedUser->setArrayPref("history", "last_repository", $_SESSION["PENDING_REPOSITORY_ID"]);
+            $loggedUser->setPref("pending_folder", $_SESSION["PENDING_FOLDER"]);
+            $loggedUser->save("user");
+            AuthService::updateUser($loggedUser);
+            unset($_SESSION["PENDING_REPOSITORY_ID"]);
+            unset($_SESSION["PENDING_FOLDER"]);
+        }
+        $currentRepoId = ConfService::getCurrentRootDirIndex();
+        $lastRepoId  = $loggedUser->getArrayPref("history", "last_repository");
+        $defaultRepoId = AuthService::getDefaultRootId();
+        if($defaultRepoId == -1){
+            return false;
+        }else {
+            if($lastRepoId !== "" && $lastRepoId!==$currentRepoId && $parameterId == -1 && $loggedUser->canSwitchTo($lastRepoId)){
+                ConfService::switchRootDir($lastRepoId);
+            }else if($parameterId != -1 && $loggedUser->canSwitchTo($parameterId)){
+                ConfService::switchRootDir($parameterId);
+            }else if(!$loggedUser->canSwitchTo($currentRepoId)){
+                ConfService::switchRootDir($defaultRepoId);
+            }
+        }
+        return true;
+    }
+
+
     /**
      * See instance method
      * @static
@@ -264,9 +290,10 @@ class ConfService
 		{
 			if($temporary && isSet($_SESSION['REPO_ID'])){
 				$crtId = $_SESSION['REPO_ID'];
-				$_SESSION['SWITCH_BACK_REPO_ID'] = $crtId;
-				//AJXP_Logger::debug("switching to $rootDirIndex, registering $crtId");
-				//register_shutdown_function(array("ConfService","switchRootDir"), $crtId);
+                if($crtId != $rootDirIndex && !isSet($_SESSION['SWITCH_BACK_REPO_ID'])){
+                    $_SESSION['SWITCH_BACK_REPO_ID'] = $crtId;
+                    //AJXP_Logger::debug("switching to $rootDirIndex, registering $crtId");
+                }
 			}else{
                 $crtId = $_SESSION['REPO_ID'];
                 $_SESSION['PREVIOUS_REPO_ID'] = $crtId;
@@ -289,7 +316,7 @@ class ConfService
 		if($rootDirIndex!=-1 && AuthService::usersEnabled() && AuthService::getLoggedUser()!=null){
 			$loggedUser = AuthService::getLoggedUser();
 			$loggedUser->setArrayPref("history", "last_repository", $rootDirIndex);
-			$loggedUser->save();
+			$loggedUser->save("user");
 		}	
 				
 	}
@@ -642,9 +669,21 @@ class ConfService
      */
 	public function getMessagesInst($forceRefresh = false)
 	{
-		if(!isset($this->configs["MESSAGES"]) || $forceRefresh)
-		{
-            $crtLang = self::getLanguage();
+        $crtLang = self::getLanguage();
+        $messageCacheDir = dirname(AJXP_PLUGINS_MESSAGES_FILE)."/i18n";
+        $messageFile = $messageCacheDir."/".$crtLang."_".basename(AJXP_PLUGINS_MESSAGES_FILE);
+        if(isSet($this->configs["MESSAGES"]) && !$forceRefresh){
+            return $this->configs["MESSAGES"];
+        }
+        if(!isset($this->configs["MESSAGES"]) && is_file($messageFile)){
+            include($messageFile);
+            if(isSet($MESSAGES)){
+                $this->configs["MESSAGES"] = $MESSAGES;
+            }
+            if(isSet($CONF_MESSAGES)){
+                $this->configs["CONF_MESSAGES"] = $CONF_MESSAGES;
+            }
+        }else {
 			$this->configs["MESSAGES"] = array();
 			$this->configs["CONF_MESSAGES"] = array();
 			$nodes = AJXP_PluginsService::getInstance()->searchAllManifests("//i18n", "nodes");
@@ -670,6 +709,8 @@ class ConfService
                     $this->configs["CONF_MESSAGES"] = array_merge($this->configs["CONF_MESSAGES"], $mess);
                 }
 			}
+            if(!is_dir($messageCacheDir)) mkdir($messageCacheDir);
+            @file_put_contents($messageFile, "<?php \$MESSAGES = ".var_export($this->configs["MESSAGES"], true) ." ; \$CONF_MESSAGES = ".var_export($this->configs["CONF_MESSAGES"], true) ." ; ");
 		}
 		
 		return $this->configs["MESSAGES"];
@@ -693,10 +734,14 @@ class ConfService
             $RESERVED_EXTENSIONS = array();
             include_once(AJXP_CONF_PATH."/extensions.conf.php");
             $EXTENSIONS = array_merge($RESERVED_EXTENSIONS, $EXTENSIONS);
+            foreach($EXTENSIONS as $key => $value){
+                unset($EXTENSIONS[$key]);
+                $EXTENSIONS[$value[0]] = $value;
+            }
             $nodes = AJXP_PluginsService::getInstance()->searchAllManifests("//extensions/extension", "nodes", true);
             $res = array();
             foreach($nodes as $node){
-                $res[] = array($node->getAttribute("mime"), $node->getAttribute("icon"), $node->getAttribute("messageId"));
+                $res[$node->getAttribute("mime")] = array($node->getAttribute("mime"), $node->getAttribute("icon"), $node->getAttribute("messageId"));
             }
             if(count($res)){
                 $EXTENSIONS = array_merge($EXTENSIONS, $res);
@@ -883,6 +928,32 @@ class ConfService
 		$accessType = $crtRepository->getAccessType();
 		$pServ = AJXP_PluginsService::getInstance();
 		$plugInstance = $pServ->getPluginByTypeName("access", $accessType);
+
+        // TRIGGER BEFORE INIT META
+        $metaSources = $crtRepository->getOption("META_SOURCES");
+        if(isSet($metaSources) && is_array($metaSources) && count($metaSources)){
+            $keys = array_keys($metaSources);
+            foreach ($keys as $plugId){
+                if($plugId == "") continue;
+                $split = explode(".", $plugId);
+                $instance = $pServ->getPluginById($plugId);
+                if(!is_object($instance)) {
+                    continue;
+                }
+                if(!method_exists($instance, "beforeInitMeta")){
+                    continue;
+                }
+                try{
+                    $instance->init($metaSources[$plugId]);
+                    $instance->beforeInitMeta($plugInstance);
+                }catch(Exception $e){
+                    AJXP_Logger::logAction('ERROR : Cannot instanciate Meta plugin, reason : '.$e->getMessage());
+                    $this->errors[] = $e->getMessage();
+                }
+            }
+        }
+
+        // INIT MAIN DRIVER
 		$plugInstance->init($crtRepository);
 		try{
 			$plugInstance->initRepository();
@@ -898,6 +969,7 @@ class ConfService
 		}
 		$pServ->setPluginUniqueActiveForType("access", $accessType);			
 		
+        // TRIGGER INIT META
 		$metaSources = $crtRepository->getOption("META_SOURCES");
 		if(isSet($metaSources) && is_array($metaSources) && count($metaSources)){
 			$keys = array_keys($metaSources);			
@@ -918,7 +990,19 @@ class ConfService
                 $pServ->setPluginActive($split[0], $split[1]);
 			}
 		}
-		$this->configs["ACCESS_DRIVER"] = $plugInstance;	
+        if(count($this->errors)>0){
+            $e = new AJXP_Exception("Error while loading repository feature : ".implode(",",$this->errors));
+			// Remove repositories from the lists
+			unset($this->configs["REPOSITORIES"][$crtRepository->getId()]);
+            if(isSet($_SESSION["PREVIOUS_REPO_ID"]) && $_SESSION["PREVIOUS_REPO_ID"] !=$crtRepository->getId()){
+                $this->switchRootDir($_SESSION["PREVIOUS_REPO_ID"]);
+            }else{
+                $this->switchRootDir();
+            }
+			throw $e;
+        }
+
+		$this->configs["ACCESS_DRIVER"] = $plugInstance;
 		return $this->configs["ACCESS_DRIVER"];
 	}
 
