@@ -41,8 +41,10 @@ define("AJXP_EXEC", true);
 // APPLICATION PATHES CONFIGURATION
 define("AJXP_DATA_PATH", AJXP_INSTALL_PATH."/data");
 define("AJXP_CACHE_DIR", AJXP_DATA_PATH."/cache");
+define("AJXP_SHARED_CACHE_DIR", AJXP_INSTALL_PATH."/data/cache");
 define("AJXP_PLUGINS_CACHE_FILE", AJXP_CACHE_DIR."/plugins_cache.ser");
 define("AJXP_PLUGINS_REQUIRES_FILE", AJXP_CACHE_DIR."/plugins_requires.ser");
+define("AJXP_PLUGINS_MESSAGES_FILE", AJXP_CACHE_DIR."/plugins_messages.ser");
 define("AJXP_SERVER_ACCESS", "index.php");
 define("AJXP_PLUGINS_FOLDER", "plugins");
 define("AJXP_BIN_FOLDER_REL", "core/classes");
@@ -85,13 +87,26 @@ function AjaXplorer_autoload($className){
     $corePlugClass = glob(AJXP_INSTALL_PATH."/".AJXP_PLUGINS_FOLDER."/core.*/class.".$className.".php", GLOB_NOSORT);
     if($corePlugClass !== false && count($corePlugClass)){
         require_once($corePlugClass[0]);
+        return;
+    }
+    $corePlugInterface = glob(AJXP_INSTALL_PATH."/".AJXP_PLUGINS_FOLDER."/core.*/interface.".$className.".php", GLOB_NOSORT);
+    if($corePlugInterface !== false && count($corePlugInterface)){
+        require_once($corePlugInterface[0]);
+        return;
     }
 }
 spl_autoload_register('AjaXplorer_autoload');
 
 AJXP_Utils::safeIniSet("session.cookie_httponly", 1);
-//AJXP_Utils::safeIniSet("session.cookie_path", "/ajaxplorer");
 
-
+if(is_file(AJXP_CONF_PATH."/bootstrap_conf.php")){
+    include(AJXP_CONF_PATH."/bootstrap_conf.php");
+    if(isSet($AJXP_INISET)){
+        foreach($AJXP_INISET as $key => $value) AJXP_Utils::safeIniSet($key, $value);
+    }
+    if(defined('AJXP_LOCALE')){
+        setlocale(LC_ALL, AJXP_LOCALE);
+    }
+}
 
 ?>

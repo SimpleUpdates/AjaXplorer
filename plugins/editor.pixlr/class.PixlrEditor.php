@@ -73,6 +73,9 @@ class PixlrEditor extends AJXP_Plugin {
       
     }else if($action == "retrieve_pixlr_image"){
       $file = AJXP_Utils::decodeSecureMagic($httpVars["original_file"]);
+        $node = new AJXP_Node($destStreamURL.$file);
+        $node->loadNodeInfo();
+        AJXP_Controller::applyHook("node.before_change", array(&$node));
       $url = $httpVars["new_url"];
       $urlParts = parse_url($url);
       $query = $urlParts["query"];
@@ -92,6 +95,8 @@ class PixlrEditor extends AJXP_Plugin {
       if ($content_type[0] != "image"){
         throw new AJXP_Exception("Invalid File Type");
       }
+        $content_length = intval($headers["Content-Length"]);
+        if($content_length != 0) AJXP_Controller::applyHook("node.before_change", array(&$node, $content_length));
       
       $orig = fopen($image, "r");
       $target = fopen($destStreamURL.$file, "w");

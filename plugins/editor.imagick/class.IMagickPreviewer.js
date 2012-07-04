@@ -20,10 +20,17 @@
 Class.create("IMagickPreviewer", Diaporama, {
 
 	fullscreenMode: false,
+	src_file: "",
 
 	initialize: function($super, oFormObject)
 	{
-		$super(oFormObject);
+        var options = {
+            floatingToolbar:true,
+            replaceScroller:false,
+            toolbarStyle: "icons_only diaporama_toolbar",
+            actions : {}
+        };
+		$super(oFormObject, options);
 		this.baseUrl = ajxpBootstrap.parameters.get('ajxpServerAccess')+"&get_action=get_extracted_page&file=";
 		// Override onload for the text
 		this.jsImage.onload = function(){
@@ -47,6 +54,7 @@ Class.create("IMagickPreviewer", Diaporama, {
 	
 	open : function($super, userSelection)
 	{
+		this.src_file = userSelection.getUniqueFileName();
 		this.downloadButton.onclick = function(){
 			if(!this.currentFile) return;		
 			ajaxplorer.triggerDownload(ajxpBootstrap.parameters.get('ajxpServerAccess')+'&action=download&file='+userSelection.getUniqueFileName());
@@ -91,20 +99,71 @@ Class.create("IMagickPreviewer", Diaporama, {
 		connexion.sendAsync();
 	},
 						
-	getPreview : function(ajxpNode){
-		var img = new Element('img', {
-			src:IMagickPreviewer.prototype.getThumbnailSource(ajxpNode), 
+	getPreview : function(ajxpNode){		
+		var img = new Element('img', {			
 			style:'border:1px solid #676965;',
-            align:'absmiddle'
-		});
+            align:'absmiddle',
+            src:IMagickPreviewer.prototype.getThumbnailSource(ajxpNode)
+		});		
 		img.resizePreviewElement = function(dimensionObject){			
+			ratio = img.ratio;
+			if(!ratio) {
+				var fakeIm = new Image();
+				fakeIm.onload = function(){	
+					img.ratio = fakeIm.width/fakeIm.height;
+					img.resizePreviewElement(dimensionObject);
+				}
+				fakeIm.src = img.src;
+				//img.onload = function(){img.resizePreviewElement(dimensionObject);};
+				ratio = 1.0;
+			}
 			var imgDim = {
-				width:21, 
-				height:29
+				width:20,
+				height:20/ratio
 			};
 			var styleObj = fitRectangleToDimension(imgDim, dimensionObject);
 			img.setStyle(styleObj);
 		}
+		img.observe("mouseover", function(event){
+			var theImage = event.target;
+			if(theImage.up('.thumbnail_selectable_cell')) return;
+			if(!theImage.openBehaviour){
+				var opener = new Element('div').update(MessageHash[411]);
+				opener.setStyle({
+					width:styleObj.width, 
+					display:'none', 
+					position:'absolute', 
+					color: 'white',
+					backgroundColor: 'black',
+					opacity: '0.6',
+					fontWeight: 'bold',
+					fontSize: '12px',
+					textAlign: 'center',
+					cursor: 'pointer'
+				});
+                opener.addClassName('imagePreviewOverlay');
+				img.previewOpener = opener;
+				theImage.insert({before:opener});
+				theImage.setStyle({cursor:'pointer'});
+				theImage.openBehaviour = true;
+				theImage.observe("click", function(event){
+					ajaxplorer.actionBar.fireAction('open_with');
+				});
+			}
+            var off = theImage.positionedOffset();
+            var realLeftOffset = Math.max(off.left, theImage.parentNode.positionedOffset().left);
+			theImage.previewOpener.setStyle({
+                display:'block',
+                left: realLeftOffset + 'px',
+                width:theImage.getWidth() + "px",
+                top: (off.top + theImage.getHeight() - theImage.previewOpener.getHeight()) + "px"
+            });
+		});
+		img.observe("mouseout", function(event){
+			var theImage = event.target;
+			if(theImage.up('.thumbnail_selectable_cell')) return;
+			theImage.previewOpener.setStyle({display:'none'});
+		});		
 		return img;
 	},
 	
@@ -124,7 +183,27 @@ Class.create("IMagickPreviewer", Diaporama, {
 	removeOnLoad: function(){
 		removeLightboxFromElement(this.imgContainer);
 		this.loading = false;
-	}
+	},
 	
+	updateImage : function(){
+		var dimObject = this.sizes.get(this.currentFile);
+		this.crtHeight = dimObject.height;
+		this.crtWidth = dimObject.width;
+		if(this.crtWidth){
+			this.crtRatio = this.crtHeight / this.crtWidth;
+		}
+		this.downloadButton.addClassName("disabled");
+		new Effect.Opacity(this.imgTag, {afterFinish : function(){
+			this.jsImageLoading = true;
+			this.jsImage.src  = this.baseUrl + encodeURIComponent(this.currentFile) + "&src_file=" + this.src_file;
+			if(!this.crtWidth && !this.crtHeight){
+				this.crtWidth = this.imgTag.getWidth();
+				this.crtHeight = this.imgTag.getHeight();
+				this.crtRatio = this.crtHeight / this.crtWidth;
+			}
+		}.bind(this), from:1.0,to:0, duration:0.3});
+        
+        this.updateInfoPanel();
+	}
 	
 });

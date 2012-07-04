@@ -244,8 +244,8 @@ class AJXP_User extends AbstractAjxpUser
 	 */
 	function setPref($prefName, $prefValue){
 
-        if($prefName == "CUSTOM_PARAMS"){
-            $prefValue = serialize($prefValue);
+        if(!is_string($prefValue)){
+            $prefValue = '$phpserial$'.serialize($prefValue);
         }
 		// Prevent a query if the preferences are identical to the existing preferences.
 		if (array_key_exists($prefName, $this->prefs) && $this->prefs[$prefName] == $prefValue) {
@@ -295,8 +295,15 @@ class AJXP_User extends AbstractAjxpUser
 
     function getPref($prefName){
         $p = parent::getPref($prefName);
-        if($prefName == "CUSTOM_PARAMS" && isSet($p)){
-            return unserialize($p);
+        if(isSet($p)){
+            if(strpos($p, '$phpserial$') !== false && strpos($p, '$phpserial$') === 0){
+                $p = substr($p, strlen('$phpserial$'));
+                return unserialize($p);
+            }
+            // old method
+            if($prefName == "CUSTOM_PARAMS"){
+                return unserialize($p);
+            }
         }
         return $p;
     }
@@ -434,7 +441,8 @@ class AJXP_User extends AbstractAjxpUser
 		if (!is_array($this->bookmarks)) { 
 			$this->bookmarks = Array();
 		}
-		
+
+        $this->bookmarks = array();
 		foreach ($all_bookmarks as $b) {
 			if (!is_array($this->bookmarks[$b['repo_uuid']])) {
 				$this->bookmarks[$b['repo_uuid']] = Array();
@@ -470,13 +478,22 @@ class AJXP_User extends AbstractAjxpUser
         }
 
 	}
-	
+
+    function clearRights(){
+        $this->rights = array();
+        dibi::query("DELETE FROM [ajxp_user_rights] WHERE [login]='".$this->getId()."'");
+    }
+
 	/**
 	 * Save user rights, preferences and bookmarks.
-	 * 
+	 * @param String $context
 	 * @see AbstractAjxpUser#save()
 	 */
-	function save(){
+	function save($context = "superuser"){
+        if($context != "superuser"){
+            // Nothing specific to do, prefs and bookmarks are saved on-the-fly.
+            return;
+        }
 		$this->log('Saving user...');
 		
 		if($this->isAdmin() === true){
@@ -518,7 +535,7 @@ class AJXP_User extends AbstractAjxpUser
 			$dirPath = AJXP_INSTALL_PATH."/data/users";
 			AJXP_Logger::logAction("getTemporaryData", array("Warning" => "The conf.sql driver is missing a mandatory option USERS_DIRPATH!"));
 		}
-		return AJXP_Utils::loadSerialFile($dirPath."/".$this->getId()."/-temp-".$key.".ser");
+		return AJXP_Utils::loadSerialFile($dirPath."/".$this->getId()."-temp-".$key.".ser");
 	}
 	
 	/**
@@ -535,7 +552,7 @@ class AJXP_User extends AbstractAjxpUser
 			$dirPath = AJXP_INSTALL_PATH."/data/users";
 			AJXP_Logger::logAction("setTemporaryData", array("Warning" => "The conf.sql driver is missing a mandatory option USERS_DIRPATH!"));
 		}
-		return AJXP_Utils::saveSerialFile($dirPath.$this->getId()."-temp-".$key.".ser", $value);
+		return AJXP_Utils::saveSerialFile($dirPath."/".$this->getId()."-temp-".$key.".ser", $value);
 	}
 	
 	/**

@@ -128,9 +128,11 @@ class sqlConfDriver extends AbstractConfDriver {
         $repo->setInferOptionsFromParent(intval($result['inferOptionsFromParent']) == 1 ? true : false);
 
 		foreach ($options_result as $k => $v) {
-			if($k == "META_SOURCES"){
-				$v = unserialize($v);
-			}
+            if(strpos($v, '$phpserial$') !== false && strpos($v, '$phpserial$') === 0){
+                $v = unserialize(substr($v, strlen('$phpserial$')));
+            }else if($k == "META_SOURCES"){
+                $v = unserialize($v);
+            }
 			$repo->options[$k] = $v;
 		}
 		
@@ -252,9 +254,9 @@ class sqlConfDriver extends AbstractConfDriver {
 				dibi::query('INSERT INTO [ajxp_repo]', $repository_array);
 
 				foreach ($options as $k => $v ) {
-					if($k == "META_SOURCES"){
-						$v = serialize($v);
-					}
+                    if(!is_string($v)){
+                        $v = '$phpserial$'.serialize($v);
+                    }
 					dibi::query('INSERT INTO [ajxp_repo_options]', 
 						Array(
 							'uuid' => $repositoryObject->getUniqueId(),
@@ -277,9 +279,9 @@ class sqlConfDriver extends AbstractConfDriver {
 				dibi::query('DELETE FROM [ajxp_repo_options] WHERE [uuid] = %s',$repositoryObject->getUniqueId());
 				dibi::query('INSERT INTO [ajxp_repo]', $repository_array);
 				foreach ($options as $k => $v ) {
-					if($k == "META_SOURCES"){
-						$v = serialize($v);
-					}
+                    if(!is_string($v)){
+                        $v = '$phpserial$'.serialize($v);
+                    }
 					dibi::query('INSERT INTO [ajxp_repo_options]', 
 						Array(
 							'uuid' => $repositoryObject->getUniqueId(),
@@ -321,6 +323,18 @@ class sqlConfDriver extends AbstractConfDriver {
 		}
 		*/
 	}
+
+    function getUserChildren( $userId ){
+
+        $children = array();
+        $children_results = dibi::query('SELECT [login] FROM [ajxp_user_rights] WHERE [repo_uuid] = %s AND [rights] = %s', "ajxp.parent_user", $userId);
+        $all = $children_results->fetchAll();
+        foreach ($all as $item){
+            $children[] = $this->createUserObject($item["login"]);
+        }
+        return $children;
+
+    }
 	
 	// SAVE / EDIT / CREATE / DELETE USER OBJECT (except password)
 	/**

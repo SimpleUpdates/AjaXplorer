@@ -20,23 +20,19 @@
  */
 
 defined('AJXP_EXEC') or die( 'Access not allowed');
-define('AJXP_METADATA_SHAREDUSER', 'AJXP_METADATA_SHAREDUSER');
-
-define('AJXP_METADATA_SCOPE_GLOBAL', 1);
-define('AJXP_METADATA_SCOPE_REPOSITORY', 2);
 /**
  * @package info.ajaxplorer.plugins
  * Simple metadata implementation, stored in hidden files inside the
  * folders
  */
-class SerialMetaStore extends AJXP_Plugin {
+class SerialMetaStore extends AJXP_Plugin implements MetaStoreProvider {
 	
 	private static $currentMetaName;
 	private static $metaCache;
 	private static $fullMetaCache;
 
     protected $globalMetaFile;
-	public $accessDriver;
+	protected $accessDriver;
 
 
 	public function init($options){
@@ -156,10 +152,12 @@ class SerialMetaStore extends AJXP_Plugin {
             $metaFile = $this->globalMetaFile."_".$ajxpNode->getRepositoryId();
         }
         self::$metaCache = array();
-		if(@is_file($metaFile) && is_readable($metaFile)){
+		if((!isSet(self::$fullMetaCache) || self::$currentMetaName != $metaFile  ) && @is_file($metaFile) && is_readable($metaFile)){
             self::$currentMetaName = $metaFile;
 			$rawData = file_get_contents($metaFile);
             self::$fullMetaCache = unserialize($rawData);
+        }
+        if(isSet(self::$fullMetaCache) && is_array(self::$fullMetaCache)){
             if(isSet(self::$fullMetaCache[$fileKey][$userId])){
                 self::$metaCache = self::$fullMetaCache[$fileKey][$userId];
             }else{
@@ -214,7 +212,7 @@ class SerialMetaStore extends AJXP_Plugin {
                 @fclose($fp);
             }
 			if($scope == AJXP_METADATA_SCOPE_GLOBAL){
-                 AJXP_Controller::applyHook("version.commit_file", $metaFile);
+                 AJXP_Controller::applyHook("version.commit_file", array($metaFile, $ajxpNode));
             }
 		}
 	}
