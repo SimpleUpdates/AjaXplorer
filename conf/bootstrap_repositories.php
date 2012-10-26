@@ -29,22 +29,23 @@ defined('AJXP_EXEC') or die( 'Access not allowed');
 if(!session_id())
 	session_start();
 $user = DB_user::getSessionUser();
-if( $user && SF_controller_files::canAdminFiles( $user ) ) {
-	$REPOSITORIES[0] = array(
-		"DISPLAY"		=>	"Site Files", 
-		"DRIVER"		=>	"fs", 
-		"DRIVER_OPTIONS"=> array(
-			"PATH"			=>	LOCAL_DOCUMENT_ROOT."/site/".SF_static_global::getSiteId(), 
-			"CREATE"		=>	true,
-			"RECYCLE_BIN" 	=> 	'recycle_bin',
-			"CHMOD_VALUE"   =>  '0600',
-			"DEFAULT_RIGHTS"=>  "rw",
-			"PAGINATION_THRESHOLD" => 500,
-			"PAGINATION_NUMBER" => 200,
-			"META_SOURCES"		=> array()
-		),
-		
-	);
+if( $user ) {
+	foreach( SF_static_files::getAllowedPathsForUser( $user ) as $title => $path ) {
+		$REPOSITORIES[] = array(
+			"DISPLAY"		=>	$title, 
+			"DRIVER"		=>	"fs", 
+			"DRIVER_OPTIONS"=> array(
+				"PATH"			=>	$path, 
+				"CREATE"		=>	true,
+				"RECYCLE_BIN" 	=> 	'recycle_bin',
+				"CHMOD_VALUE"   =>  '777',
+				"DEFAULT_RIGHTS"=>  "rw",
+				"PAGINATION_THRESHOLD" => 500,
+				"PAGINATION_NUMBER" => 200,
+				"META_SOURCES"		=> array()
+			),
+		);
+	}
 }
 
 // DO NOT REMOVE THIS!
