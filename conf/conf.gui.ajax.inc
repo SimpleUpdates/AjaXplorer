@@ -1,7 +1,7 @@
 <?
 
 $DRIVER_CONF = array(
-	'GUI_THEME' => 'oxygen',
+	'GUI_THEME' => 'umbra',
 	'CUSTOM_ICON' => false,
 	'CUSTOM_ICON_HEIGHT' => '50px',
 	'CUSTOM_ICON_WIDTH' => '50px',
