@@ -32,7 +32,7 @@ class AJXP_JSPacker{
 	 * Static function for packing all js and css into big files
      * Auto detect /js/*_list.txt files and /css/*_list.txt files and pack them.
 	 */
-	function pack(){
+	static function pack(){
 
         // Make sure that the gui.* plugin is loaded
         $plug = AJXP_PluginsService::getInstance()->getPluginsByType("gui");
@@ -60,7 +60,7 @@ class AJXP_JSPacker{
      * @param $mode
      * @return bool
      */
-	function concatListAndPack($src, $out, $mode){
+	static function concatListAndPack($src, $out, $mode){
 		
 		if(!is_file($src) || !is_readable($src)){
 			return false;
