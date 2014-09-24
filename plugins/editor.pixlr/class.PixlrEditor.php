@@ -48,7 +48,7 @@ class PixlrEditor extends AJXP_Plugin {
       $tmp = SystemTextEncoding::fromUTF8($tmp);
       $fData = array("tmp_name" => $tmp, "name" => urlencode(basename($file)), "type" => "image/jpg");
       //var_dump($fData);
-      $httpClient = new HttpClient("pixlr.com");
+      $httpClient = new HttpClient("apps.pixlr.com");
       //$httpClient->setDebug(true);
       $postData = array();              
       $httpClient->setHandleRedirects(false);
