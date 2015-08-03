@@ -26,7 +26,9 @@ defined('AJXP_EXEC') or die( 'Access not allowed');
  * Uses Pixlr.com service to edit images online.
  */
 class PixlrEditor extends AJXP_Plugin {
-
+  
+  protected $enabled = false;
+  
   public function switchAction($action, $httpVars, $filesVars){
     
     if(!isSet($this->actions[$action])) return false;

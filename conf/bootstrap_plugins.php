@@ -72,5 +72,5 @@ $PLUGINS = array(
 		 "NAME" => "devnull",
 		 "OPTIONS" => array()
     ),
-	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.pixlr", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "gui.mobile", "hook.*", "log.devnull")
+	"ACTIVE_PLUGINS" => array("editor.audio", "editor.codemirror", "editor.diaporama", "editor.eml", "editor.exif", "editor.text", "editor.video", "uploader.flex", "uploader.html", "gui.ajax", "gui.mobile", "hook.*", "log.devnull")
 );
